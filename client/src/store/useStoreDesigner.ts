@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { Zone, Store, LayoutSuggestion, LayoutMetrics } from '@/types';
+import * as storeService from '@/services/storeService';
 
 interface StoreState {
   // Store properties
@@ -13,24 +14,29 @@ interface StoreState {
   suggestions: LayoutSuggestion[];
   is3DView: boolean;
   layoutMetrics: LayoutMetrics;
+  isLoading: boolean;
+  error: string | null;
   
   // Actions
-  setStoreDimensions: (width: number, height: number) => void;
-  addZone: (zone: Omit<Zone, 'id'>) => void;
-  updateZone: (id: string, updates: Partial<Zone>) => void;
-  deleteZone: (id: string) => void;
+  setStoreDimensions: (width: number, height: number) => Promise<void>;
+  addZone: (zone: Omit<Zone, 'id'>) => Promise<void>;
+  updateZone: (id: string, updates: Partial<Zone>) => Promise<void>;
+  deleteZone: (id: string) => Promise<void>;
   selectZone: (zone: Zone | null) => void;
   setEditingZone: (isEditing: boolean) => void;
   setSuggestions: (suggestions: LayoutSuggestion[]) => void;
   setGeneratingSuggestions: (isGenerating: boolean) => void;
-  applySuggestion: (suggestion: LayoutSuggestion) => void;
-  resetStore: () => void;
+  applySuggestion: (suggestion: LayoutSuggestion) => Promise<void>;
+  resetStore: () => Promise<void>;
   toggle3DView: () => void;
   optimizeLayout: () => void;
   detectOverlaps: () => void;
   calculateLayoutMetrics: () => LayoutMetrics;
+  fetchStoreFromServer: () => Promise<void>;
+  setError: (error: string | null) => void;
 }
 
+// Default zones are now used as a fallback only if fetching from server fails
 const DEFAULT_ZONES: Zone[] = [
   {
     id: '1',
@@ -94,62 +100,157 @@ export const useStoreDesigner = create<StoreState>()(
       suggestions: [],
       is3DView: false,
       layoutMetrics: DEFAULT_METRICS,
+      isLoading: false,
+      error: null,
 
-      // Actions
-      setStoreDimensions: (width: number, height: number) => {
-        set((state) => ({
-          store: {
-            ...state.store,
-            width,
-            height,
-          },
-        }));
-        get().detectOverlaps();
-        get().calculateLayoutMetrics();
+      // New method to fetch store from server
+      fetchStoreFromServer: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          const storeData = await storeService.fetchStoreLayout();
+          set({ store: storeData });
+          get().detectOverlaps();
+          get().calculateLayoutMetrics();
+        } catch (error) {
+          console.error('Error fetching store from server:', error);
+          set({ error: 'Failed to fetch store layout from server.' });
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
-      addZone: (zoneData) => {
-        const newZone: Zone = {
-          ...zoneData,
-          id: Date.now().toString(),
-        };
-        
-        set((state) => ({
-          store: {
-            ...state.store,
-            zones: [...state.store.zones, newZone],
-          },
-        }));
-        get().detectOverlaps();
-        get().calculateLayoutMetrics();
+      setError: (error) => {
+        set({ error });
       },
 
-      updateZone: (id: string, updates: Partial<Zone>) => {
-        set((state) => ({
-          store: {
-            ...state.store,
-            zones: state.store.zones.map((zone) =>
-              zone.id === id ? { ...zone, ...updates } : zone
-            ),
-          },
-          selectedZone: state.selectedZone?.id === id 
-            ? { ...state.selectedZone, ...updates } 
-            : state.selectedZone,
-        }));
-        get().detectOverlaps();
-        get().calculateLayoutMetrics();
+      // Actions - modified to use server API
+      setStoreDimensions: async (width: number, height: number) => {
+        try {
+          set({ isLoading: true, error: null });
+          const updatedStore = await storeService.updateStoreDimensions(width, height);
+          
+          set((state) => ({
+            store: updatedStore
+          }));
+          
+          get().detectOverlaps();
+          get().calculateLayoutMetrics();
+        } catch (error) {
+          console.error('Error updating store dimensions:', error);
+          set({ error: 'Failed to update store dimensions on server.' });
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
-      deleteZone: (id: string) => {
-        set((state) => ({
-          store: {
-            ...state.store,
-            zones: state.store.zones.filter((zone) => zone.id !== id),
-          },
-          selectedZone: state.selectedZone?.id === id ? null : state.selectedZone,
-        }));
-        get().detectOverlaps();
-        get().calculateLayoutMetrics();
+      addZone: async (zoneData) => {
+        try {
+          set({ isLoading: true, error: null });
+          // Generate a temporary ID for optimistic UI updates
+          const tempId = Date.now().toString();
+          
+          // Optimistic update
+          const newZone: Zone = {
+            ...zoneData,
+            id: tempId,
+          };
+          
+          set((state) => ({
+            store: {
+              ...state.store,
+              zones: [...state.store.zones, newZone],
+            },
+          }));
+          
+          // Actual server update
+          const updatedStore = await storeService.addZone(zoneData);
+          
+          // Update with server response
+          set({ store: updatedStore });
+          
+          get().detectOverlaps();
+          get().calculateLayoutMetrics();
+        } catch (error) {
+          console.error('Error adding zone:', error);
+          set({ error: 'Failed to add zone on server.' });
+          
+          // Revert optimistic update by fetching fresh data
+          get().fetchStoreFromServer();
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      updateZone: async (id: string, updates: Partial<Zone>) => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // Optimistic update
+          set((state) => ({
+            store: {
+              ...state.store,
+              zones: state.store.zones.map((zone) =>
+                zone.id === id ? { ...zone, ...updates } : zone
+              ),
+            },
+            selectedZone: state.selectedZone?.id === id 
+              ? { ...state.selectedZone, ...updates } 
+              : state.selectedZone,
+          }));
+          
+          // Actual server update
+          const updatedStore = await storeService.updateZone(id, updates);
+          
+          // Update with server response
+          set({ store: updatedStore });
+          
+          get().detectOverlaps();
+          get().calculateLayoutMetrics();
+        } catch (error) {
+          console.error('Error updating zone:', error);
+          set({ error: 'Failed to update zone on server.' });
+          
+          // Revert optimistic update by fetching fresh data
+          get().fetchStoreFromServer();
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      deleteZone: async (id: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // Store the current state for potential rollback
+          const previousStore = get().store;
+          const previousSelectedZone = get().selectedZone;
+          
+          // Optimistic update
+          set((state) => ({
+            store: {
+              ...state.store,
+              zones: state.store.zones.filter((zone) => zone.id !== id),
+            },
+            selectedZone: state.selectedZone?.id === id ? null : state.selectedZone,
+          }));
+          
+          // Actual server update
+          const updatedStore = await storeService.deleteZone(id);
+          
+          // Update with server response
+          set({ store: updatedStore });
+          
+          get().detectOverlaps();
+          get().calculateLayoutMetrics();
+        } catch (error) {
+          console.error('Error deleting zone:', error);
+          set({ error: 'Failed to delete zone on server.' });
+          
+          // Revert optimistic update by fetching fresh data
+          get().fetchStoreFromServer();
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
       selectZone: (zone: Zone | null) => {
@@ -168,148 +269,138 @@ export const useStoreDesigner = create<StoreState>()(
         set({ isGeneratingSuggestions: isGenerating });
       },
 
-      applySuggestion: (suggestion: LayoutSuggestion) => {
-        set((state) => ({
-          store: {
-            ...state.store,
-            zones: suggestion.zones,
-          },
-          selectedZone: null,
-        }));
-        get().detectOverlaps();
-        get().calculateLayoutMetrics();
+      applySuggestion: async (suggestion: LayoutSuggestion) => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // Optimistic update
+          set((state) => ({
+            store: {
+              ...state.store,
+              zones: suggestion.zones,
+            },
+            selectedZone: null,
+          }));
+
+          // Send the entire store to the server with the suggested zones
+          const updatedStore = await storeService.updateEntireStore({
+            ...get().store,
+            zones: suggestion.zones
+          });
+          
+          // Update with server response
+          set({ store: updatedStore });
+          
+          get().detectOverlaps();
+          get().calculateLayoutMetrics();
+        } catch (error) {
+          console.error('Error applying suggestion:', error);
+          set({ error: 'Failed to apply suggestion on server.' });
+          
+          // Revert optimistic update
+          get().fetchStoreFromServer();
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
-      resetStore: () => {
-        set({
-          store: DEFAULT_STORE,
-          selectedZone: null,
-          isEditingZone: false,
-          suggestions: [],
-          layoutMetrics: DEFAULT_METRICS,
-        });
-        get().detectOverlaps();
-        get().calculateLayoutMetrics();
+      resetStore: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // Set local state to default store
+          set({
+            store: DEFAULT_STORE,
+            selectedZone: null,
+            isEditingZone: false,
+            suggestions: [],
+            layoutMetrics: DEFAULT_METRICS,
+          });
+          
+          // Send default store to server
+          await storeService.updateEntireStore(DEFAULT_STORE);
+          
+          get().detectOverlaps();
+          get().calculateLayoutMetrics();
+        } catch (error) {
+          console.error('Error resetting store:', error);
+          set({ error: 'Failed to reset store on server.' });
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
       toggle3DView: () => {
-        set((state) => ({
-          is3DView: !state.is3DView,
-        }));
+        set((state) => ({ is3DView: !state.is3DView }));
       },
-      
-      detectOverlaps: () => {
-        const { zones } = get().store;
-        
-        // Reset overlapping flags
-        const zonesWithOverlapStatus = zones.map(zone => ({ ...zone, isOverlapping: false }));
-        
-        // Check each pair of zones for overlap
-        for (let i = 0; i < zonesWithOverlapStatus.length; i++) {
-          for (let j = i + 1; j < zonesWithOverlapStatus.length; j++) {
-            if (doZonesOverlap(zonesWithOverlapStatus[i], zonesWithOverlapStatus[j])) {
-              zonesWithOverlapStatus[i].isOverlapping = true;
-              zonesWithOverlapStatus[j].isOverlapping = true;
-            }
-          }
-        }
-        
-        set(state => ({
-          store: {
-            ...state.store,
-            zones: zonesWithOverlapStatus
-          }
-        }));
-      },
-      
-      calculateLayoutMetrics: () => {
-        const { width, height, zones } = get().store;
-        const storeArea = width * height;
-        
-        // Calculate total zone area (including overlaps)
-        let zoneArea = 0;
-        zones.forEach(zone => {
-          zoneArea += zone.width * zone.height;
+
+      optimizeLayout: () => {
+        // Implementation for layout optimization
+        const { store } = get();
+        const optimizedZones = store.zones.map((zone, index) => {
+          // Simple optimization: arrange zones in a grid pattern
+          const cols = Math.ceil(Math.sqrt(store.zones.length));
+          const row = Math.floor(index / cols);
+          const col = index % cols;
+          
+          return {
+            ...zone,
+            x: col * (zone.width + 1),
+            y: row * (zone.height + 1),
+          };
         });
         
-        // Check for overlaps
-        let hasOverlap = false;
+        set((state) => ({
+          store: {
+            ...state.store,
+            zones: optimizedZones,
+          },
+        }));
+        
+        get().detectOverlaps();
+        get().calculateLayoutMetrics();
+      },
+
+      detectOverlaps: () => {
+        const { store } = get();
+        const zones = store.zones;
+        let hasOverlaps = false;
+        
         for (let i = 0; i < zones.length; i++) {
           for (let j = i + 1; j < zones.length; j++) {
             if (doZonesOverlap(zones[i], zones[j])) {
-              hasOverlap = true;
+              hasOverlaps = true;
               break;
             }
           }
-          if (hasOverlap) break;
+          if (hasOverlaps) break;
         }
         
-        const utilization = Math.min(100, (zoneArea / storeArea) * 100);
-        const unusedSpace = storeArea - zoneArea;
+        set((state) => ({
+          layoutMetrics: {
+            ...state.layoutMetrics,
+            overlappingZones: hasOverlaps,
+          },
+        }));
+      },
+
+      calculateLayoutMetrics: () => {
+        const { store } = get();
+        const totalStoreArea = store.width * store.height;
+        const usedArea = store.zones.reduce((acc, zone) => acc + (zone.width * zone.height), 0);
+        const utilization = totalStoreArea > 0 ? (usedArea / totalStoreArea) * 100 : 0;
+        const unusedSpace = totalStoreArea - usedArea;
         
         const metrics: LayoutMetrics = {
           utilization,
-          overlappingZones: hasOverlap,
-          unusedSpace: unusedSpace > 0 ? unusedSpace : 0
+          overlappingZones: get().layoutMetrics.overlappingZones,
+          unusedSpace,
         };
         
         set({ layoutMetrics: metrics });
         return metrics;
       },
-      
-      optimizeLayout: () => {
-        const { width, height, zones } = get().store;
-        const storeArea = width * height;
-        
-        // Simple optimization strategy: arrange zones in a grid-like pattern
-        let currentX = 0;
-        let currentY = 0;
-        let maxHeightInRow = 0;
-        
-        const optimizedZones = [...zones].map(zone => {
-          // If adding this zone would exceed store width, move to next row
-          if (currentX + zone.width > width) {
-            currentX = 0;
-            currentY += maxHeightInRow;
-            maxHeightInRow = 0;
-          }
-          
-          // If zone won't fit in remaining vertical space, we need to adjust
-          if (currentY + zone.height > height) {
-            // For simplicity, we'll scale down the zone to fit
-            const scaleFactor = (height - currentY) / zone.height;
-            zone.height = height - currentY;
-            zone.width = Math.max(1, zone.width * scaleFactor);
-          }
-          
-          // Position zone at current coordinates
-          const optimizedZone = {
-            ...zone,
-            x: currentX,
-            y: currentY,
-            isOverlapping: false
-          };
-          
-          // Update position for next zone
-          currentX += zone.width;
-          maxHeightInRow = Math.max(maxHeightInRow, zone.height);
-          
-          return optimizedZone;
-        });
-        
-        set(state => ({
-          store: {
-            ...state.store,
-            zones: optimizedZones
-          }
-        }));
-        
-        get().detectOverlaps();
-        get().calculateLayoutMetrics();
-      }
     }),
-    {
-      name: 'store-designer',
-    }
+    { name: 'store-designer' }
   )
 );

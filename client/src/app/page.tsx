@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 import AIAssistant from '@/components/AIAssistant';
 import DemoHelp from '@/components/DemoHelp';
+import StoreLoader from '@/components/StoreLoader';
 
 // Dynamically import LayoutCanvas to avoid SSR issues with Three.js
 const LayoutCanvas = dynamic(() => import('@/components/LayoutCanvas/LayoutCanvas'), {
@@ -18,28 +19,30 @@ const LayoutCanvas = dynamic(() => import('@/components/LayoutCanvas/LayoutCanva
 
 export default function Home() {
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      {/* Navbar */}
-      <Navbar />
-      
-      {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar */}
-        <Sidebar />
+    <StoreLoader>
+      <div className="h-screen flex flex-col bg-gray-50">
+        {/* Navbar */}
+        <Navbar />
         
-        {/* Main Canvas Area */}
-        <div className="flex-1 p-6">
-          <LayoutCanvas />
+        {/* Main content area */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Sidebar */}
+          <Sidebar />
+          
+          {/* Main Canvas Area */}
+          <div className="flex-1 p-6">
+            <LayoutCanvas />
+          </div>
+          
+          {/* Right AI Assistant Panel */}
+          <div className="w-80 p-6">
+            <AIAssistant />
+          </div>
         </div>
         
-        {/* Right AI Assistant Panel */}
-        <div className="w-80 p-6">
-          <AIAssistant />
-        </div>
+        {/* Demo Help */}
+        <DemoHelp />
       </div>
-      
-      {/* Demo Help */}
-      <DemoHelp />
-    </div>
+    </StoreLoader>
   );
 }

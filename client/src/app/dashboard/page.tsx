@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
+import StoreLoader from '@/components/StoreLoader';
 import { 
   TrendingUp, 
   Layout, 
@@ -112,7 +113,8 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+    <StoreLoader>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Navbar */}
       <Navbar />
       
@@ -361,7 +363,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      </motion.div>
-    </div>
+      </motion.div>      </div>
+    </StoreLoader>
   );
 }

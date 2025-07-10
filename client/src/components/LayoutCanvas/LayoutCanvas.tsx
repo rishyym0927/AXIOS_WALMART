@@ -20,7 +20,9 @@ export default function LayoutCanvas() {
     layoutMetrics,
     calculateLayoutMetrics,
     detectOverlaps,
-    optimizeLayout
+    optimizeLayout,
+    isLoading,
+    fetchStoreFromServer
   } = useStoreDesigner();
   
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -190,6 +192,13 @@ export default function LayoutCanvas() {
         >
           <Eye size={16} /> {is3DView ? '2D View' : '3D View'}
         </button>
+        
+        {isLoading && (
+          <div className="bg-blue-600 text-white px-4 py-2 rounded shadow flex items-center gap-2 ml-2">
+            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+            <span>Updating...</span>
+          </div>
+        )}
       </div>
     </div>
   );

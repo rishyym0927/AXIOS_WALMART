@@ -1,0 +1,115 @@
+const mongoose = require('mongoose');
+
+// Define schema for a zone
+const ZoneSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true
+  },
+  name: {
+    type: String,
+    required: true
+  },
+  color: {
+    type: String,
+    required: true
+  },
+  x: {
+    type: Number,
+    required: true
+  },
+  y: {
+    type: Number,
+    required: true
+  },
+  width: {
+    type: Number,
+    required: true
+  },
+  height: {
+    type: Number,
+    required: true
+  },
+  isOverlapping: {
+    type: Boolean,
+    default: false
+  }
+});
+
+// Define schema for store layout
+const StoreSchema = new mongoose.Schema({
+  storeId: {
+    type: String,
+    required: true,
+    default: 'main-store', // This is our single store identifier
+    unique: true
+  },
+  width: {
+    type: Number,
+    required: true,
+    default: 30
+  },
+  height: {
+    type: Number,
+    required: true,
+    default: 20
+  },
+  zones: {
+    type: [ZoneSchema],
+    default: []
+  }
+}, { 
+  timestamps: true 
+});
+
+// We'll use a fixed storeId to ensure we always work with the same store
+StoreSchema.statics.getStore = async function() {
+  const FIXED_STORE_ID = 'main-store'; // This is our single store identifier
+  
+  // Attempt to find the store with our fixed ID
+  let store = await this.findOne({ storeId: FIXED_STORE_ID });
+  
+  // If no store exists yet, create a default one with our fixed ID
+  if (!store) {
+    const defaultZones = [
+      {
+        id: '1',
+        name: 'Grocery',
+        color: '#10b981',
+        x: 2,
+        y: 2,
+        width: 12,
+        height: 8
+      },
+      {
+        id: '2',
+        name: 'Electronics',
+        color: '#3b82f6',
+        x: 16,
+        y: 2,
+        width: 12,
+        height: 8
+      },
+      {
+        id: '3',
+        name: 'Cash Counter',
+        color: '#f59e0b',
+        x: 12,
+        y: 12,
+        width: 6,
+        height: 4
+      }
+    ];
+    
+    store = await this.create({
+      storeId: FIXED_STORE_ID, // Set the fixed ID
+      width: 30,
+      height: 20,
+      zones: defaultZones
+    });
+  }
+  
+  return store;
+};
+
+module.exports = mongoose.model('Store', StoreSchema);
