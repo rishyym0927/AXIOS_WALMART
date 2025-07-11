@@ -11,7 +11,7 @@ interface ShelfFormProps {
   onCancel: () => void;
 }
 
-const SHELF_CATEGORIES = [
+export const SHELF_CATEGORIES = [
   { value: 'general', label: 'General', color: '#6b7280' },
   { value: 'specialty', label: 'Specialty', color: '#059669' },
   { value: 'premium', label: 'Premium', color: '#dc2626' },

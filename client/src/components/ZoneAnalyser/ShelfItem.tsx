@@ -13,32 +13,17 @@ interface ShelfItemProps {
   onDelete: (shelfId: string) => void;
 }
 
+// Import SHELF_CATEGORIES from ShelfForm to maintain consistency
+import { SHELF_CATEGORIES } from './ShelfForm';
+
 const getShelfColor = (category: string) => {
-  const colors: Record<string, string> = {
-    general: '#6b7280',
-    specialty: '#059669',
-    premium: '#dc2626',
-    electronics: '#3b82f6',
-    food: '#f59e0b',
-    clothing: '#8b5cf6',
-    home: '#06b6d4',
-    health: '#ec4899'
-  };
-  return colors[category] || '#6b7280';
+  const categoryObj = SHELF_CATEGORIES.find((cat: { value: string; color: string; label: string }) => cat.value === category);
+  return categoryObj?.color || '#6b7280';
 };
 
 const getCategoryLabel = (category: string) => {
-  const labels: Record<string, string> = {
-    general: 'General',
-    specialty: 'Specialty',
-    premium: 'Premium',
-    electronics: 'Electronics',
-    food: 'Food & Beverage',
-    clothing: 'Clothing',
-    home: 'Home & Garden',
-    health: 'Health & Beauty'
-  };
-  return labels[category] || 'Unknown';
+  const categoryObj = SHELF_CATEGORIES.find((cat: { value: string; color: string; label: string }) => cat.value === category);
+  return categoryObj?.label || 'Unknown';
 };
 
 export default function ShelfItem({ shelf, isSelected, onSelect, onEdit, onDelete }: ShelfItemProps) {

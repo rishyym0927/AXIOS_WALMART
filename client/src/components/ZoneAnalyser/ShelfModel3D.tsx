@@ -6,6 +6,7 @@ import { Text } from '@react-three/drei';
 import { Shelf } from '@/types';
 import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
+import { SHELF_CATEGORIES } from './ShelfForm';
 
 interface ShelfModel3DProps {
   shelf: Shelf;
@@ -45,12 +46,10 @@ export default function ShelfModel3D({ shelf, isSelected, onSelect }: ShelfModel
   const getShelfColor = () => {
     if (shelf.isOverlapping) return '#ef4444'; // Red for overlapping
     if (isSelected) return '#3b82f6'; // Blue when selected
-    switch (shelf.category) {
-      case 'general': return '#6b7280'; // Gray
-      case 'specialty': return '#059669'; // Green
-      case 'premium': return '#dc2626'; // Red
-      default: return '#6b7280';
-    }
+    
+    // Use SHELF_CATEGORIES to maintain consistency with the rest of the UI
+    const categoryObj = SHELF_CATEGORIES.find(cat => cat.value === shelf.category);
+    return categoryObj?.color || '#6b7280';
   };
 
   const shelfColor = getShelfColor();

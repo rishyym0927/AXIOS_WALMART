@@ -5,6 +5,7 @@ import { ThreeEvent } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import { Shelf } from '@/types';
 import * as THREE from 'three';
+import { SHELF_CATEGORIES } from './ShelfForm';
 
 interface ResizableShelfProps {
   shelf: Shelf;
@@ -40,8 +41,9 @@ export default function ResizableShelf({
     }
     setLastClickTime(currentTime);
     
+    // Only start dragging, but don't immediately select the shelf
+    // This prevents analysis panel from opening immediately
     setIsDragging(true);
-    onSelect(shelf);
     
     // Calculate offset from shelf center to click point
     const clickPoint = event.point;
@@ -55,6 +57,12 @@ export default function ResizableShelf({
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
     if (!isDragging) return;
+    
+    // Select shelf after dragging starts - this ensures the selection
+    // only happens when user is actually moving the shelf
+    if (isDragging) {
+      onSelect(shelf);
+    }
     
     const newCenterX = event.point.x - dragOffset.x;
     const newCenterZ = event.point.z - dragOffset.y;
@@ -70,19 +78,22 @@ export default function ResizableShelf({
     onUpdate(shelf.id, { x: constrainedX, y: constrainedY });
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (event: ThreeEvent<PointerEvent>) => {
+    // If we just clicked (without dragging), select the shelf
+    if (isDragging && Math.abs(event.point.x - (shelf.x + shelf.width / 2)) < 0.1 &&
+        Math.abs(event.point.z - (shelf.y + shelf.height / 2)) < 0.1) {
+      onSelect(shelf);
+    }
     setIsDragging(false);
   };
 
   const getShelfColor = () => {
     if (shelf.isOverlapping) return '#ef4444'; // Red for overlapping
     if (isSelected) return '#3b82f6'; // Blue when selected
-    switch (shelf.category) {
-      case 'general': return '#6b7280'; // Gray
-      case 'specialty': return '#059669'; // Green
-      case 'premium': return '#dc2626'; // Red
-      default: return '#6b7280';
-    }
+    
+    // Use SHELF_CATEGORIES to maintain consistency with the rest of the UI
+    const categoryObj = SHELF_CATEGORIES.find(cat => cat.value === shelf.category);
+    return categoryObj?.color || '#6b7280';
   };
 
   const getCursorStyle = () => {
@@ -99,12 +110,14 @@ export default function ResizableShelf({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerOut={() => {
+          document.body.style.cursor = 'default';
+          // If dragging and cursor leaves the shelf, end drag operation
+          if (isDragging) setIsDragging(false);
+        }}
         onPointerOver={(e) => {
           e.stopPropagation();
           document.body.style.cursor = getCursorStyle();
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = 'default';
         }}
         position={[0, 0, 0]}
       >
