@@ -1,5 +1,5 @@
-import React, { useRef, useMemo, useEffect } from 'react';
-import { useThree } from '@react-three/fiber';
+import React, { useRef, useMemo, useEffect, useCallback } from 'react';
+import { useThree, useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import { useRouter } from 'next/navigation';
 import * as THREE from 'three';
@@ -21,15 +21,51 @@ function ResizableZone({
   isSelected: boolean;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const { camera, raycaster, pointer } = useThree();
+  const { camera, raycaster, gl } = useThree();
   const router = useRouter();
+  
+  // State for smooth interactions
   const [isDragging, setIsDragging] = React.useState(false);
   const [isResizing, setIsResizing] = React.useState(false);
   const [resizeHandle, setResizeHandle] = React.useState<'corner' | 'right' | 'bottom' | null>(null);
-  const [initialMousePos, setInitialMousePos] = React.useState({ x: 0, y: 0 });
-  const [initialZoneState, setInitialZoneState] = React.useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [hoverHandle, setHoverHandle] = React.useState<'corner' | 'right' | 'bottom' | null>(null);
+  
+  // Use refs for tracking to avoid stale closures
+  const dragStateRef = useRef({
+    isDragging: false,
+    isResizing: false,
+    resizeHandle: null as 'corner' | 'right' | 'bottom' | null,
+    startMousePos: { x: 0, y: 0 },
+    startZoneState: { x: 0, y: 0, width: 0, height: 0 },
+    lastValidUpdate: Date.now()
+  });
 
-  const handlePointerDown = (event: any) => {
+  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
+  const raycasterPoint = useMemo(() => new THREE.Vector3(), []);
+
+  // Helper function to get mouse world position
+  const getWorldPosition = useCallback((event: MouseEvent) => {
+    const rect = gl.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    
+    raycaster.setFromCamera(mouse, camera);
+    raycaster.ray.intersectPlane(plane, raycasterPoint);
+    return { x: raycasterPoint.x, z: raycasterPoint.z };
+  }, [camera, raycaster, plane, raycasterPoint, gl]);
+
+  // Throttled update function for smoother performance
+  const throttledUpdate = useCallback((updates: Partial<Zone>) => {
+    const now = Date.now();
+    if (now - dragStateRef.current.lastValidUpdate > 16) { // ~60fps
+      onUpdate(zone.id, updates);
+      dragStateRef.current.lastValidUpdate = now;
+    }
+  }, [onUpdate, zone.id]);
+
+  const handlePointerDown = useCallback((event: any) => {
     event.stopPropagation();
     
     // Check for double-click navigation
@@ -43,117 +79,182 @@ function ResizableZone({
 
     const localPoint = intersect.point;
     
-    // Store initial mouse position in world coordinates
-    setInitialMousePos({ x: localPoint.x, y: localPoint.z });
-    setInitialZoneState({ 
+    // Store initial state
+    dragStateRef.current.startMousePos = { x: localPoint.x, y: localPoint.z };
+    dragStateRef.current.startZoneState = { 
       x: zone.x, 
       y: zone.y, 
       width: zone.width, 
       height: zone.height 
-    });
+    };
     
-    // Check if clicking near edges for resizing (increased threshold for better UX)
-    const edgeThreshold = 1.0;
+    // Determine interaction type with better edge detection
+    const edgeThreshold = Math.min(zone.width, zone.height) * 0.15; // Proportional threshold
+    const minThreshold = 0.5; // Minimum threshold for small zones
+    const threshold = Math.max(edgeThreshold, minThreshold);
+    
     const rightEdge = zone.x + zone.width;
     const bottomEdge = zone.y + zone.height;
     
-    const isNearRightEdge = Math.abs(localPoint.x - rightEdge) < edgeThreshold;
-    const isNearBottomEdge = Math.abs(localPoint.z - bottomEdge) < edgeThreshold;
+    const isNearRightEdge = Math.abs(localPoint.x - rightEdge) < threshold;
+    const isNearBottomEdge = Math.abs(localPoint.z - bottomEdge) < threshold;
     
     if (isNearRightEdge && isNearBottomEdge) {
-      // Corner resize (both width and height)
+      dragStateRef.current.isResizing = true;
+      dragStateRef.current.resizeHandle = 'corner';
       setIsResizing(true);
       setResizeHandle('corner');
     } else if (isNearRightEdge) {
-      // Right edge resize (width only)
+      dragStateRef.current.isResizing = true;
+      dragStateRef.current.resizeHandle = 'right';
       setIsResizing(true);
       setResizeHandle('right');
     } else if (isNearBottomEdge) {
-      // Bottom edge resize (height only)
+      dragStateRef.current.isResizing = true;
+      dragStateRef.current.resizeHandle = 'bottom';
       setIsResizing(true);
       setResizeHandle('bottom');
     } else {
-      // Dragging
+      dragStateRef.current.isDragging = true;
       setIsDragging(true);
     }
     
     onSelect(zone);
-  };
+  }, [zone, router, onSelect]);
 
-  const handlePointerMove = (event: any) => {
-    if (!isDragging && !isResizing) return;
+  // Global mouse move handler for smoother tracking
+  const handleMouseMove = useCallback((event: MouseEvent) => {
+    if (!dragStateRef.current.isDragging && !dragStateRef.current.isResizing) return;
+
+    const worldPos = getWorldPosition(event);
+    const deltaX = worldPos.x - dragStateRef.current.startMousePos.x;
+    const deltaZ = worldPos.z - dragStateRef.current.startMousePos.y;
+
+    if (dragStateRef.current.isDragging) {
+      // Dragging with bounds checking
+      const newX = Math.max(0, Math.min(
+        dragStateRef.current.startZoneState.x + deltaX, 
+        storeWidth - zone.width
+      ));
+      const newY = Math.max(0, Math.min(
+        dragStateRef.current.startZoneState.y + deltaZ, 
+        storeHeight - zone.height
+      ));
+      
+      throttledUpdate({ x: newX, y: newY });
+    } else if (dragStateRef.current.isResizing && dragStateRef.current.resizeHandle) {
+      // Resizing with constraints
+      let newWidth = dragStateRef.current.startZoneState.width;
+      let newHeight = dragStateRef.current.startZoneState.height;
+
+      const minSize = 1; // Minimum zone size
+      const maxWidth = storeWidth - zone.x;
+      const maxHeight = storeHeight - zone.y;
+
+      if (dragStateRef.current.resizeHandle === 'corner' || dragStateRef.current.resizeHandle === 'right') {
+        newWidth = Math.max(minSize, Math.min(
+          dragStateRef.current.startZoneState.width + deltaX, 
+          maxWidth
+        ));
+      }
+      
+      if (dragStateRef.current.resizeHandle === 'corner' || dragStateRef.current.resizeHandle === 'bottom') {
+        newHeight = Math.max(minSize, Math.min(
+          dragStateRef.current.startZoneState.height + deltaZ, 
+          maxHeight
+        ));
+      }
+      
+      throttledUpdate({ width: newWidth, height: newHeight });
+    }
+  }, [getWorldPosition, storeWidth, storeHeight, zone.width, zone.height, zone.x, zone.y, throttledUpdate]);
+
+  const handleMouseUp = useCallback(() => {
+    dragStateRef.current.isDragging = false;
+    dragStateRef.current.isResizing = false;
+    dragStateRef.current.resizeHandle = null;
+    
+    setIsDragging(false);
+    setIsResizing(false);
+    setResizeHandle(null);
+  }, []);
+
+  // Hover detection for cursor changes
+  const handlePointerMove = useCallback((event: any) => {
+    if (isDragging || isResizing || !isSelected) return;
 
     const intersect = event.intersections[0];
     if (!intersect) return;
 
-    const currentPoint = intersect.point;
-    const deltaX = currentPoint.x - initialMousePos.x;
-    const deltaY = currentPoint.z - initialMousePos.y;
-
-    if (isDragging) {
-      // Calculate new position
-      const newX = Math.max(0, Math.min(initialZoneState.x + deltaX, storeWidth - zone.width));
-      const newY = Math.max(0, Math.min(initialZoneState.y + deltaY, storeHeight - zone.height));
-      
-      onUpdate(zone.id, { x: newX, y: newY });
-    } else if (isResizing && resizeHandle) {
-      let newWidth = initialZoneState.width;
-      let newHeight = initialZoneState.height;
-
-      // Calculate new dimensions based on resize handle
-      if (resizeHandle === 'corner' || resizeHandle === 'right') {
-        newWidth = Math.max(1, Math.min(initialZoneState.width + deltaX, storeWidth - zone.x));
-      }
-      
-      if (resizeHandle === 'corner' || resizeHandle === 'bottom') {
-        newHeight = Math.max(1, Math.min(initialZoneState.height + deltaY, storeHeight - zone.y));
-      }
-      
-      onUpdate(zone.id, { width: newWidth, height: newHeight });
+    const localPoint = intersect.point;
+    const edgeThreshold = Math.min(zone.width, zone.height) * 0.15;
+    const minThreshold = 0.5;
+    const threshold = Math.max(edgeThreshold, minThreshold);
+    
+    const rightEdge = zone.x + zone.width;
+    const bottomEdge = zone.y + zone.height;
+    
+    const isNearRightEdge = Math.abs(localPoint.x - rightEdge) < threshold;
+    const isNearBottomEdge = Math.abs(localPoint.z - bottomEdge) < threshold;
+    
+    if (isNearRightEdge && isNearBottomEdge) {
+      setHoverHandle('corner');
+    } else if (isNearRightEdge) {
+      setHoverHandle('right');
+    } else if (isNearBottomEdge) {
+      setHoverHandle('bottom');
+    } else {
+      setHoverHandle(null);
     }
-  };
+  }, [isDragging, isResizing, isSelected, zone.width, zone.height, zone.x, zone.y]);
 
-  const handlePointerUp = () => {
-    setIsDragging(false);
-    setIsResizing(false);
-    setResizeHandle(null);
-  };
-
+  // Setup global event listeners
   useEffect(() => {
-    const canvas = document.querySelector('canvas');
-    if (canvas) {
-      canvas.addEventListener('pointerup', handlePointerUp);
-      canvas.addEventListener('pointermove', (e) => {
-        // Update cursor based on position
-        if (isSelected && !isDragging && !isResizing) {
-          const rect = canvas.getBoundingClientRect();
-          const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-          const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-          
-          // This is a simplified cursor update - you might want to implement proper raycasting here
-          canvas.style.cursor = 'grab';
-        }
-      });
-      
-      return () => {
-        canvas.removeEventListener('pointerup', handlePointerUp);
-        canvas.style.cursor = 'default';
-      };
+    const canvas = gl.domElement;
+    
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mouseleave', handleMouseUp);
+    
+    return () => {
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mouseleave', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp, gl]);
+
+  // Update cursor based on hover state
+  useEffect(() => {
+    const canvas = gl.domElement;
+    if (isDragging) {
+      canvas.style.cursor = 'grabbing';
+    } else if (isResizing) {
+      canvas.style.cursor = resizeHandle === 'corner' ? 'nw-resize' : 
+                           resizeHandle === 'right' ? 'e-resize' : 'n-resize';
+    } else if (isSelected) {
+      canvas.style.cursor = hoverHandle === 'corner' ? 'nw-resize' : 
+                           hoverHandle === 'right' ? 'e-resize' : 
+                           hoverHandle === 'bottom' ? 'n-resize' : 'grab';
+    } else {
+      canvas.style.cursor = 'default';
     }
-  }, [isDragging, isResizing, isSelected]);
+    
+    return () => {
+      canvas.style.cursor = 'default';
+    };
+  }, [isDragging, isResizing, isSelected, hoverHandle, resizeHandle, gl]);
 
   const geometry = useMemo(() => {
     return new THREE.PlaneGeometry(zone.width, zone.height);
   }, [zone.width, zone.height]);
 
   const material = useMemo(() => {
-    // Change the color if zone is overlapping with others
     const baseColor = zone.isOverlapping ? '#ef4444' : zone.color;
     
     return new THREE.MeshBasicMaterial({
       color: baseColor,
       transparent: true,
-      opacity: isSelected ? 0.9 : 0.7, // Enhanced opacity for better visibility
+      opacity: isSelected ? 0.9 : 0.7,
       side: THREE.DoubleSide,
     });
   }, [zone.color, zone.isOverlapping, isSelected]);
@@ -171,11 +272,12 @@ function ResizableZone({
           if (meshRef.current && meshRef.current.material) {
             (meshRef.current.material as THREE.MeshBasicMaterial).opacity = 1;
           }
-        }} // Highlight on hover
+        }}
         onPointerOut={() => {
           if (meshRef.current && meshRef.current.material) {
             (meshRef.current.material as THREE.MeshBasicMaterial).opacity = isSelected ? 0.9 : 0.7;
           }
+          setHoverHandle(null);
         }}
       />
       
@@ -215,25 +317,37 @@ function ResizableZone({
         {zone.name}
       </Text>
 
-      {/* Resize handles with improved visuals */}
+      {/* Enhanced resize handles with hover effects */}
       {isSelected && (
         <>
           {/* Corner resize handle (bottom-right) */}
           <mesh position={[zone.width / 2 - 0.3, 0.15, zone.height / 2 - 0.3]}>
             <boxGeometry args={[0.6, 0.2, 0.6]} />
-            <meshBasicMaterial color="#9333ea" />
+            <meshBasicMaterial 
+              color={hoverHandle === 'corner' ? '#7c3aed' : '#9333ea'} 
+              transparent
+              opacity={hoverHandle === 'corner' ? 1 : 0.8}
+            />
           </mesh>
           
           {/* Right edge resize handle */}
           <mesh position={[zone.width / 2 - 0.1, 0.15, 0]}>
             <boxGeometry args={[0.2, 0.2, zone.height * 0.8]} />
-            <meshBasicMaterial color="#10b981" transparent opacity={0.8} />
+            <meshBasicMaterial 
+              color={hoverHandle === 'right' ? '#059669' : '#10b981'} 
+              transparent 
+              opacity={hoverHandle === 'right' ? 1 : 0.8}
+            />
           </mesh>
           
           {/* Bottom edge resize handle */}
           <mesh position={[0, 0.15, zone.height / 2 - 0.1]}>
             <boxGeometry args={[zone.width * 0.8, 0.2, 0.2]} />
-            <meshBasicMaterial color="#10b981" transparent opacity={0.8} />
+            <meshBasicMaterial 
+              color={hoverHandle === 'bottom' ? '#059669' : '#10b981'} 
+              transparent 
+              opacity={hoverHandle === 'bottom' ? 1 : 0.8}
+            />
           </mesh>
         </>
       )}

@@ -62,8 +62,8 @@ export default function LayoutCanvas() {
                 store.width/2, 
                 cameraHeight, 
                 store.height + store.width/2
-              ]} // Moved further back
-              fov={50} // Smaller field of view for better perspective
+              ]} 
+              fov={50}
             />
             <CameraControls3D storeWidth={store.width} storeHeight={store.height} />
             <ambientLight intensity={0.6} />
@@ -86,7 +86,6 @@ export default function LayoutCanvas() {
             
             <ambientLight intensity={0.6} />
             <directionalLight position={[10, 10, 5]} intensity={0.8} />
-            
             
             <StoreFloor width={store.width} height={store.height} />
             
@@ -164,7 +163,7 @@ export default function LayoutCanvas() {
 
       {/* View controls */}
       <div className="absolute top-4 right-4 flex gap-2">
-        {(
+        {is3DView && (
           <div className="flex gap-2">
             <button
               onClick={increase3DZoom}
@@ -184,7 +183,7 @@ export default function LayoutCanvas() {
               <Move size={16} /> Use mouse to orbit
             </div>
           </div>
-        ) }
+        )}
         
         <button
           onClick={toggleView}

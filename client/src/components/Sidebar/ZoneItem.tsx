@@ -51,7 +51,7 @@ export default function ZoneItem({ zone, isSelected, onSelect, onEdit, onDelete 
           <div>
             <div className="font-semibold text-gray-900">{zone.name}</div>
             <div className="text-sm text-gray-700 font-medium">
-              {zone.width}m × {zone.height}m at ({zone.x}, {zone.y})
+              {zone.width.toFixed(3)}m × {zone.height.toFixed(3)}m at ({zone.x.toFixed(3)}, {zone.y.toFixed(3)})
             </div>
           </div>
         </div>
