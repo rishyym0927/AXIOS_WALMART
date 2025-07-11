@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { Shelf, ShelfMetrics } from '@/types';
+import { 
+  fetchShelvesForZone, 
+  addShelf as apiAddShelf, 
+  updateShelf as apiUpdateShelf, 
+  deleteShelf as apiDeleteShelf 
+} from '@/services/storeService';
 
 interface ShelfState {
   shelves: Shelf[];
@@ -49,80 +55,124 @@ export const useShelfStore = create<ShelfState>()(
       zoneHeight: 0,
       
       // Actions
-      addShelf: (shelfData) => {
-        const newShelf: Shelf = {
-          ...shelfData,
-          id: `shelf-${Date.now()}`,
-        };
-        set(state => ({
-          shelves: [...state.shelves, newShelf]
-        }));
-        get().detectShelfOverlaps();
-        // Trigger metrics calculation after adding shelf
-        const { zoneWidth, zoneHeight } = get();
-        if (zoneWidth > 0 && zoneHeight > 0) {
-          get().calculateShelfMetrics(zoneWidth, zoneHeight);
+      addShelf: async (shelfData) => {
+        try {
+          const { currentZoneId } = get();
+          
+          if (!currentZoneId) {
+            console.error('Cannot add shelf: No zone selected');
+            return;
+          }
+          
+          // Add shelf through API
+          const newShelf = await apiAddShelf(currentZoneId, shelfData);
+          
+          // Update local state
+          set(state => ({
+            shelves: [...state.shelves, newShelf]
+          }));
+          
+          get().detectShelfOverlaps();
+          
+          // Trigger metrics calculation after adding shelf
+          const { zoneWidth, zoneHeight } = get();
+          if (zoneWidth > 0 && zoneHeight > 0) {
+            get().calculateShelfMetrics(zoneWidth, zoneHeight);
+          }
+        } catch (error) {
+          console.error('Failed to add shelf:', error);
         }
       },
       
-      updateShelf: (id, updates) => {
-        set(state => ({
-          shelves: state.shelves.map(shelf => 
-            shelf.id === id ? { ...shelf, ...updates } : shelf
-          ),
-          selectedShelf: state.selectedShelf?.id === id 
-            ? { ...state.selectedShelf, ...updates } 
-            : state.selectedShelf,
-        }));
-        get().detectShelfOverlaps();
-        // Recalculate metrics when shelves are updated
-        const { zoneWidth, zoneHeight } = get();
-        if (zoneWidth > 0 && zoneHeight > 0) {
-          get().calculateShelfMetrics(zoneWidth, zoneHeight);
+      updateShelf: async (id, updates) => {
+        try {
+          const { currentZoneId, shelves } = get();
+          
+          if (!currentZoneId) {
+            console.error('Cannot update shelf: No zone selected');
+            return;
+          }
+          
+          // Update shelf through API
+          await apiUpdateShelf(currentZoneId, id, updates);
+          
+          // Update local state
+          set(state => ({
+            shelves: state.shelves.map(shelf => 
+              shelf.id === id ? { ...shelf, ...updates } : shelf
+            ),
+            selectedShelf: state.selectedShelf?.id === id 
+              ? { ...state.selectedShelf, ...updates } 
+              : state.selectedShelf,
+          }));
+          
+          get().detectShelfOverlaps();
+          
+          // Recalculate metrics when shelves are updated
+          const { zoneWidth, zoneHeight } = get();
+          if (zoneWidth > 0 && zoneHeight > 0) {
+            get().calculateShelfMetrics(zoneWidth, zoneHeight);
+          }
+        } catch (error) {
+          console.error('Failed to update shelf:', error);
         }
       },
       
-      deleteShelf: (id) => {
-        set(state => ({
-          shelves: state.shelves.filter(shelf => shelf.id !== id),
-          selectedShelf: state.selectedShelf?.id === id ? null : state.selectedShelf,
-        }));
-        get().detectShelfOverlaps();
+      deleteShelf: async (id) => {
+        try {
+          const { currentZoneId } = get();
+          
+          if (!currentZoneId) {
+            console.error('Cannot delete shelf: No zone selected');
+            return;
+          }
+          
+          // Delete shelf through API
+          await apiDeleteShelf(currentZoneId, id);
+          
+          // Update local state
+          set(state => ({
+            shelves: state.shelves.filter(shelf => shelf.id !== id),
+            selectedShelf: state.selectedShelf?.id === id ? null : state.selectedShelf,
+          }));
+          
+          get().detectShelfOverlaps();
+        } catch (error) {
+          console.error('Failed to delete shelf:', error);
+        }
       },
       
       selectShelf: (shelf) => {
         set({ selectedShelf: shelf });
       },
       
-      loadShelvesForZone: (zoneId) => {
-        // For demonstration, create some mock shelves
-        const mockShelves: Shelf[] = [
-          {
-            id: 'shelf-1',
-            name: 'Main Display',
-            category: 'general',
-            x: 1,
-            y: 1,
-            width: 3,
-            height: 1,
-            zoneId,
-          },
-          {
-            id: 'shelf-2',
-            name: 'Corner Unit',
-            category: 'specialty',
-            x: 5,
-            y: 2,
-            width: 2,
-            height: 1.5,
-            zoneId,
+      loadShelvesForZone: async (zoneId) => {
+        try {
+          console.log('Loading shelves for zone:', zoneId);
+          
+          // Fetch shelves from API
+          const shelves = await fetchShelvesForZone(zoneId);
+          
+          set({ 
+            shelves,
+            currentZoneId: zoneId 
+          });
+          
+          get().detectShelfOverlaps();
+          
+          // Calculate metrics for the loaded shelves
+          const { zoneWidth, zoneHeight } = get();
+          if (zoneWidth > 0 && zoneHeight > 0) {
+            get().calculateShelfMetrics(zoneWidth, zoneHeight);
           }
-        ];
-        set({ 
-          shelves: mockShelves.filter(shelf => shelf.zoneId === zoneId),
-          currentZoneId: zoneId 
-        });
-        get().detectShelfOverlaps();
+        } catch (error) {
+          console.error('Failed to load shelves for zone:', error);
+          // Set empty shelves but still update the current zone ID
+          set({ 
+            shelves: [],
+            currentZoneId: zoneId 
+          });
+        }
       },
       
       calculateShelfMetrics: (zoneWidth, zoneHeight) => {

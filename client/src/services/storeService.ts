@@ -1,4 +1,4 @@
-import { Store, Zone } from '@/types';
+import { Store, Zone, Shelf } from '@/types';
 
 // Use Next.js built-in dev detection
 // const API_STORE_URL = process.env.NODE_ENV === 'production' 
@@ -6,6 +6,7 @@ import { Store, Zone } from '@/types';
 //   : 'http://localhost:5000/api/store';
 
 const API_STORE_URL = "https://proto-8b15.onrender.com/api/store"
+const API_SHELVES_URL = "http://localhost:5000/api/shelves"
 console.log('Environment:', process.env.NODE_ENV);
 console.log('API URL:', API_STORE_URL);
 
@@ -145,6 +146,113 @@ export async function deleteZone(zoneId: string): Promise<Store> {
     return data;
   } catch (error) {
     console.error('Error deleting zone:', error);
+    throw error;
+  }
+}
+
+// Shelf services
+export async function fetchShelvesForZone(zoneId: string): Promise<Shelf[]> {
+  try {
+    console.log('Fetching shelves for zone:', zoneId);
+    const response = await fetch(`${API_SHELVES_URL}/${zoneId}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch shelves: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('Shelves fetched successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('Error fetching shelves:', error);
+    throw error;
+  }
+}
+
+export async function addShelf(zoneId: string, shelfData: Omit<Shelf, 'id'>): Promise<Shelf> {
+  try {
+    console.log('Adding shelf to zone:', zoneId, shelfData);
+    const response = await fetch(`${API_SHELVES_URL}/${zoneId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(shelfData),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to add shelf: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log('Shelf added successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('Error adding shelf:', error);
+    throw error;
+  }
+}
+
+export async function updateShelf(zoneId: string, shelfId: string, updates: Partial<Shelf>): Promise<Shelf> {
+  try {
+    console.log('Updating shelf:', shelfId, 'in zone:', zoneId, updates);
+    const response = await fetch(`${API_SHELVES_URL}/${zoneId}/${shelfId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update shelf: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log('Shelf updated successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('Error updating shelf:', error);
+    throw error;
+  }
+}
+
+export async function deleteShelf(zoneId: string, shelfId: string): Promise<void> {
+  try {
+    console.log('Deleting shelf:', shelfId, 'from zone:', zoneId);
+    const response = await fetch(`${API_SHELVES_URL}/${zoneId}/${shelfId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete shelf: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    console.log('Shelf deleted successfully');
+  } catch (error) {
+    console.error('Error deleting shelf:', error);
+    throw error;
+  }
+}
+
+export async function deleteAllShelvesInZone(zoneId: string): Promise<void> {
+  try {
+    console.log('Deleting all shelves in zone:', zoneId);
+    const response = await fetch(`${API_SHELVES_URL}/${zoneId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete shelves: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    console.log('All shelves in zone deleted successfully');
+  } catch (error) {
+    console.error('Error deleting all shelves:', error);
     throw error;
   }
 }

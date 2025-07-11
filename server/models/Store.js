@@ -1,5 +1,45 @@
 const mongoose = require('mongoose');
 
+// Define schema for a shelf
+const ShelfSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true
+  },
+  name: {
+    type: String,
+    required: true
+  },
+  category: {
+    type: String,
+    required: true
+  },
+  x: {
+    type: Number,
+    required: true
+  },
+  y: {
+    type: Number,
+    required: true
+  },
+  width: {
+    type: Number,
+    required: true
+  },
+  height: {
+    type: Number,
+    required: true
+  },
+  zoneId: {
+    type: String,
+    required: true
+  },
+  isOverlapping: {
+    type: Boolean,
+    default: false
+  }
+});
+
 // Define schema for a zone
 const ZoneSchema = new mongoose.Schema({
   id: {
@@ -33,6 +73,10 @@ const ZoneSchema = new mongoose.Schema({
   isOverlapping: {
     type: Boolean,
     default: false
+  },
+  shelves: {
+    type: [ShelfSchema],
+    default: []
   }
 });
 
@@ -79,7 +123,29 @@ StoreSchema.statics.getStore = async function() {
         x: 2,
         y: 2,
         width: 12,
-        height: 8
+        height: 8,
+        shelves: [
+          {
+            id: 'shelf-1',
+            name: 'Main Display',
+            category: 'general',
+            x: 1,
+            y: 1,
+            width: 3,
+            height: 1,
+            zoneId: '1'
+          },
+          {
+            id: 'shelf-2',
+            name: 'Corner Unit',
+            category: 'specialty',
+            x: 5,
+            y: 2,
+            width: 2,
+            height: 1.5,
+            zoneId: '1'
+          }
+        ]
       },
       {
         id: '2',
@@ -88,7 +154,19 @@ StoreSchema.statics.getStore = async function() {
         x: 16,
         y: 2,
         width: 12,
-        height: 8
+        height: 8,
+        shelves: [
+          {
+            id: 'shelf-3',
+            name: 'Electronics Display',
+            category: 'electronics',
+            x: 2,
+            y: 2,
+            width: 4,
+            height: 1,
+            zoneId: '2'
+          }
+        ]
       },
       {
         id: '3',
@@ -97,7 +175,8 @@ StoreSchema.statics.getStore = async function() {
         x: 12,
         y: 12,
         width: 6,
-        height: 4
+        height: 4,
+        shelves: []
       }
     ];
     
