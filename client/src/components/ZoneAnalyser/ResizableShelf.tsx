@@ -32,11 +32,18 @@ export default function ResizableShelf({
   const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
     
-    // Check for double-click to open product analysis modal
+    // Check for double-click to navigate to product page
     const currentTime = Date.now();
     if (currentTime - lastClickTime < 300) {
-      // Double click detected - select shelf to open product analysis
-      onSelect(shelf);
+      // Double click detected - navigate to the shelf product page
+      const router = require('next/navigation').useRouter();
+      try {
+        window.location.href = `/shelf/${shelf.id}`;
+      } catch (error) {
+        console.error("Error navigating to shelf product page:", error);
+        // Fallback to selection
+        onSelect(shelf);
+      }
       return;
     }
     setLastClickTime(currentTime);

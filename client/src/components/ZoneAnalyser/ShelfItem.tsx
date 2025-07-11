@@ -48,8 +48,8 @@ export default function ShelfItem({ shelf, isSelected, onSelect, onEdit, onDelet
 
   const handleAnalyzeProducts = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Select the shelf to trigger the product analysis modal
-    onSelect(shelf);
+    // Navigate to dedicated product management page for this shelf
+    router.push(`/shelf/${shelf.id}`);
   };
 
   return (

@@ -13,11 +13,9 @@ export default function ShelfMetrics({ zone }: ShelfMetricsProps) {
 
   const handleAnalyzeProducts = () => {
     if (selectedShelf) {
-      // The shelf analyzer modal is controlled by the zone page
-      // through the selectedShelf state, so this will automatically 
-      // trigger the modal to open
-      console.log('Analyzing products for shelf:', selectedShelf.id);
-      // The actual modal opening is handled in the zone page component
+      // Navigate to the dedicated product management page for this shelf
+      window.location.href = `/shelf/${selectedShelf.id}`;
+      console.log('Navigating to shelf product page for:', selectedShelf.id);
     }
   };
 

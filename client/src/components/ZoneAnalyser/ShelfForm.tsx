@@ -31,17 +31,37 @@ export default function ShelfForm({ shelf, zone, onSave, onCancel }: ShelfFormPr
     width: shelf?.width || 2,
     height: shelf?.height || 1,
     zoneId: zone.id,
+    shelfType: shelf?.name.split(' - ')[0] || ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.name.trim()) {
-      onSave(formData);
+    // Generate name from shelfType and category if provided, otherwise use the name directly
+    const finalName = formData.shelfType 
+      ? `${formData.shelfType} - ${selectedCategory?.label || formData.category}`
+      : formData.name.trim();
+      
+    if (finalName) {
+      onSave({
+        ...formData,
+        name: finalName
+      });
     }
   };
 
   const updateFormData = (field: string, value: string | number) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    // When category is updated, update the name suggestion if using shelf type
+    if (field === 'category' && formData.shelfType) {
+      const categoryLabel = SHELF_CATEGORIES.find(cat => cat.value === String(value))?.label || value;
+      setFormData(prev => ({ 
+        ...prev, 
+        [field]: String(value)
+      }));
+    } else if (field === 'category') {
+      setFormData(prev => ({ ...prev, [field]: String(value) }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   const selectedCategory = SHELF_CATEGORIES.find(cat => cat.value === formData.category);
@@ -53,16 +73,38 @@ export default function ShelfForm({ shelf, zone, onSave, onCancel }: ShelfFormPr
       </h3>
       
       <div>
-        <label className="block text-sm font-semibold text-gray-800 mb-2">Shelf Name</label>
-        <input
-          type="text"
-          value={formData.name}
-          onChange={(e) => updateFormData('name', e.target.value)}
+        <label className="block text-sm font-semibold text-gray-800 mb-2">Shelf Type</label>
+        <select
+          value={formData.shelfType}
+          onChange={(e) => updateFormData('shelfType', e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          placeholder="Enter shelf name"
-          required
-        />
+        >
+          <option value="">Select a shelf type...</option>
+          <option value="Display">Display</option>
+          <option value="Storage">Storage</option>
+          <option value="Checkout">Checkout</option>
+          <option value="Endcap">Endcap</option>
+          <option value="Wall">Wall</option>
+          <option value="Counter">Counter</option>
+          <option value="Refrigeration">Refrigeration</option>
+          <option value="Freezer">Freezer</option>
+          <option value="Custom">Custom</option>
+        </select>
       </div>
+      
+      {formData.shelfType === 'Custom' && (
+        <div>
+          <label className="block text-sm font-semibold text-gray-800 mb-2">Custom Shelf Name</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => updateFormData('name', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Enter custom shelf name"
+            required
+          />
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-semibold text-gray-800 mb-2">Category</label>
@@ -143,7 +185,9 @@ export default function ShelfForm({ shelf, zone, onSave, onCancel }: ShelfFormPr
       </div>
 
       <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-        <strong>Selected Category:</strong> {selectedCategory?.label}
+        <strong>Shelf Info:</strong> {formData.shelfType ? `${formData.shelfType} - ${selectedCategory?.label}` : formData.name || 'Unnamed Shelf'}
+        <br />
+        <strong>Category:</strong> {selectedCategory?.label}
         <br />
         <strong>Position:</strong> ({formData.x}, {formData.y}) - ({formData.x + formData.width}, {formData.y + formData.height})
         <br />

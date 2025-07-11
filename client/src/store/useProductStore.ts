@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 import { Product, ShelfSlot, ShelfLayout, ShelfAnalysis } from '@/types';
+import { 
+  fetchProductsForShelf, 
+  addProductToShelf as apiAddProduct,
+  removeProductFromShelf as apiRemoveProduct,
+  updateProduct as apiUpdateProduct 
+} from '@/services/storeService';
 
 interface ProductStore {
   // State
@@ -74,7 +80,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   availableProducts: mockProducts,
   isLoading: false,
 
-  setSelectedShelf: (shelfId) => {
+  setSelectedShelf: (shelfId: string | null): void => {
     set({ selectedShelfId: shelfId });
     if (!shelfId) {
       set({ currentShelfAnalysis: null });
@@ -85,115 +91,244 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     set({ isLoading: true });
     
     // Simulate loading delay for realistic UX
-    setTimeout(() => {
-      const slotSize = 40; // 40cm slots
-      const slots = get().generateShelfGrid(shelfWidth, shelfHeight, slotSize);
-      
-      const layout: ShelfLayout = {
-        shelfId,
-        rows: Math.floor(shelfHeight / slotSize),
-        columns: Math.floor(shelfWidth / slotSize),
-        slots,
-        products: []
-      };
-
-      const analysis: ShelfAnalysis = {
-        shelfId,
-        layout,
-        metrics: {
-          totalSlots: slots.length,
-          occupiedSlots: 0,
-          utilization: 0,
-          revenue: 0
+    setTimeout(async () => {
+      try {
+        // Get the actual shelf from useShelfStore to get proper zoneId
+        const useShelfStore = require('./useShelfStore').useShelfStore;
+        const shelves = useShelfStore.getState().shelves;
+        const shelf = shelves.find((s: {id: string, zoneId: string}) => s.id === shelfId);
+        
+        if (!shelf) {
+          console.error(`Shelf ${shelfId} not found in the current shelves list`);
+          set({ isLoading: false });
+          return;
         }
-      };
+        
+        if (!shelf.zoneId) {
+          console.error(`Shelf ${shelfId} has no zoneId`);
+          set({ isLoading: false });
+          return;
+        }
+        
+        // Use shelf's zoneId
+        const zoneId = shelf.zoneId;
+        console.log('Loading shelf analysis with zoneId:', zoneId, 'shelfId:', shelfId);
+        
+        // First fetch products for this shelf from the server
+        let serverProducts: Product[] = [];
+        try {
+          serverProducts = await fetchProductsForShelf(zoneId, shelfId);
+          console.log(`Found ${serverProducts.length} products for shelf ${shelfId}`);
+        } catch (error) {
+          console.error('Error loading products, using empty array:', error);
+          // If there's a specific error about zone not found, we want to bubble that up
+          if (error instanceof Error && error.message.includes('Zone not found')) {
+            set({ isLoading: false });
+            return;
+          }
+        }
+        
+        const slotSize = 40; // 40cm slots
+        const slots = get().generateShelfGrid(shelfWidth, shelfHeight, slotSize);
+        
+        // Populate slots with products that were saved on the server
+        if (serverProducts && serverProducts.length > 0) {
+          // Simple placement algorithm - just fill slots from top left
+          let slotIndex = 0;
+          for (const product of serverProducts) {
+            if (slotIndex < slots.length) {
+              slots[slotIndex].productId = product.id;
+              slots[slotIndex].isOccupied = true;
+              slotIndex++;
+            }
+          }
+        }
+        
+        const layout: ShelfLayout = {
+          shelfId,
+          rows: Math.floor(shelfHeight / slotSize),
+          columns: Math.floor(shelfWidth / slotSize),
+          slots,
+          products: serverProducts || []
+        };
 
-      set({ 
-        currentShelfAnalysis: analysis,
-        selectedShelfId: shelfId,
-        isLoading: false 
-      });
+        const analysis: ShelfAnalysis = {
+          shelfId,
+          layout,
+          metrics: {
+            totalSlots: slots.length,
+            occupiedSlots: slots.filter(slot => slot.isOccupied).length,
+            utilization: slots.filter(slot => slot.isOccupied).length / slots.length * 100,
+            revenue: serverProducts.reduce((sum, p) => sum + (p.price || 0), 0)
+          }
+        };
+
+        set({ 
+          currentShelfAnalysis: analysis,
+          selectedShelfId: shelfId,
+          isLoading: false 
+        });
+      } catch (error) {
+        console.error('Error in loadShelfAnalysis:', error);
+        set({ isLoading: false });
+      }
     }, 500);
   },
 
-  addProductToShelf: (productId, slotId) => {
+  addProductToShelf: async (productId: string, slotId: string) => {
     const state = get();
-    if (!state.currentShelfAnalysis) return;
+    if (!state.currentShelfAnalysis) {
+      console.error('Cannot add product: No shelf analysis loaded');
+      return;
+    }
+    if (!state.selectedShelfId) {
+      console.error('Cannot add product: No shelf selected');
+      return;
+    }
 
-    const product = state.availableProducts.find(p => p.id === productId);
-    if (!product) return;
+    const product = state.availableProducts.find((p: Product) => p.id === productId);
+    if (!product) {
+      console.error('Cannot add product: Product not found', productId);
+      return;
+    }
 
-    const updatedSlots = state.currentShelfAnalysis.layout.slots.map(slot => {
-      if (slot.id === slotId && !slot.isOccupied) {
-        return { ...slot, productId, isOccupied: true };
-      }
-      return slot;
-    });
+    // First, get current shelf and zone info
+    const shelfId = state.currentShelfAnalysis.shelfId;
+    
+    // Get the actual shelf from useShelfStore to get proper zoneId
+    const useShelfStore = require('./useShelfStore').useShelfStore;
+    const shelves = useShelfStore.getState().shelves;
+    const shelf = shelves.find((s: {id: string, zoneId: string}) => s.id === shelfId);
+    
+    if (!shelf) {
+      console.error(`Cannot add product: Shelf ${shelfId} not found`);
+      return;
+    }
+    
+    if (!shelf.zoneId) {
+      console.error(`Cannot add product: Shelf ${shelfId} has no zoneId`);
+      return;
+    }
+    
+    // Use shelf's zoneId
+    const zoneId = shelf.zoneId;
+    console.log('Adding product with zoneId:', zoneId, 'shelfId:', shelfId);
+    
+    try {
+      // Add product to the server
+      await apiAddProduct(zoneId, shelfId, product);
+      
+      // Update local state
+      const updatedSlots = state.currentShelfAnalysis.layout.slots.map((slot: ShelfSlot) => {
+        if (slot.id === slotId && !slot.isOccupied) {
+          return { ...slot, productId, isOccupied: true };
+        }
+        return slot;
+      });
 
-    const updatedProducts = [...state.currentShelfAnalysis.layout.products, product];
-    const occupiedSlots = updatedSlots.filter(slot => slot.isOccupied).length;
-    const totalSlots = updatedSlots.length;
-    const revenue = updatedProducts.reduce((sum, p) => sum + (p.price || 0), 0);
+      const updatedProducts = [...state.currentShelfAnalysis.layout.products, product];
+      const occupiedSlots = updatedSlots.filter((slot: ShelfSlot) => slot.isOccupied).length;
+      const totalSlots = updatedSlots.length;
+      const revenue = updatedProducts.reduce((sum, p) => sum + (p.price || 0), 0);
 
-    const updatedAnalysis: ShelfAnalysis = {
-      ...state.currentShelfAnalysis,
-      layout: {
-        ...state.currentShelfAnalysis.layout,
-        slots: updatedSlots,
-        products: updatedProducts
-      },
-      metrics: {
-        totalSlots,
-        occupiedSlots,
-        utilization: (occupiedSlots / totalSlots) * 100,
-        revenue
-      }
-    };
+      const updatedAnalysis: ShelfAnalysis = {
+        ...state.currentShelfAnalysis,
+        layout: {
+          ...state.currentShelfAnalysis.layout,
+          slots: updatedSlots,
+          products: updatedProducts
+        },
+        metrics: {
+          totalSlots,
+          occupiedSlots,
+          utilization: (occupiedSlots / totalSlots) * 100,
+          revenue
+        }
+      };
 
-    set({ currentShelfAnalysis: updatedAnalysis });
+      set({ currentShelfAnalysis: updatedAnalysis });
+    } catch (error) {
+      console.error('Error adding product to shelf:', error);
+    }
   },
 
-  removeProductFromShelf: (slotId) => {
+  removeProductFromShelf: async (slotId: string) => {
     const state = get();
-    if (!state.currentShelfAnalysis) return;
+    if (!state.currentShelfAnalysis) {
+      console.error('Cannot remove product: No shelf analysis loaded');
+      return;
+    }
 
-    const slotToRemove = state.currentShelfAnalysis.layout.slots.find(slot => slot.id === slotId);
-    if (!slotToRemove || !slotToRemove.productId) return;
+    const slotToRemove = state.currentShelfAnalysis.layout.slots.find((slot: ShelfSlot) => slot.id === slotId);
+    if (!slotToRemove || !slotToRemove.productId) {
+      console.error('Cannot remove product: Slot is empty or not found', slotId);
+      return;
+    }
 
-    const updatedSlots = state.currentShelfAnalysis.layout.slots.map(slot => {
-      if (slot.id === slotId) {
-        return { ...slot, productId: undefined, isOccupied: false };
-      }
-      return slot;
-    });
+    const productId = slotToRemove.productId;
+    const shelfId = state.currentShelfAnalysis.shelfId;
+    
+    // Get the actual shelf from useShelfStore to get proper zoneId
+    const useShelfStore = require('./useShelfStore').useShelfStore;
+    const shelves = useShelfStore.getState().shelves;
+    const shelf = shelves.find((s: {id: string, zoneId: string}) => s.id === shelfId);
+    
+    if (!shelf) {
+      console.error(`Cannot remove product: Shelf ${shelfId} not found`);
+      return;
+    }
+    
+    if (!shelf.zoneId) {
+      console.error(`Cannot remove product: Shelf ${shelfId} has no zoneId`);
+      return;
+    }
+    
+    // Use shelf's zoneId
+    const zoneId = shelf.zoneId;
+    console.log('Removing product with zoneId:', zoneId, 'shelfId:', shelfId, 'productId:', productId);
 
-    const updatedProducts = state.currentShelfAnalysis.layout.products.filter(
-      product => product.id !== slotToRemove.productId
-    );
+    try {
+      // Remove product from the server
+      await apiRemoveProduct(zoneId, shelfId, productId);
+      
+      // Update local state
+      const updatedSlots = state.currentShelfAnalysis.layout.slots.map((slot: ShelfSlot) => {
+        if (slot.id === slotId) {
+          return { ...slot, productId: undefined, isOccupied: false };
+        }
+        return slot;
+      });
 
-    const occupiedSlots = updatedSlots.filter(slot => slot.isOccupied).length;
-    const totalSlots = updatedSlots.length;
-    const revenue = updatedProducts.reduce((sum, p) => sum + (p.price || 0), 0);
+      const updatedProducts = state.currentShelfAnalysis.layout.products.filter(
+        (product: Product) => product.id !== productId
+      );
 
-    const updatedAnalysis: ShelfAnalysis = {
-      ...state.currentShelfAnalysis,
-      layout: {
-        ...state.currentShelfAnalysis.layout,
-        slots: updatedSlots,
-        products: updatedProducts
-      },
-      metrics: {
-        totalSlots,
-        occupiedSlots,
-        utilization: (occupiedSlots / totalSlots) * 100,
-        revenue
-      }
-    };
+      const occupiedSlots = updatedSlots.filter((slot: ShelfSlot) => slot.isOccupied).length;
+      const totalSlots = updatedSlots.length;
+      const revenue = updatedProducts.reduce((sum: number, p: Product) => sum + (p.price || 0), 0);
 
-    set({ currentShelfAnalysis: updatedAnalysis });
+      const updatedAnalysis: ShelfAnalysis = {
+        ...state.currentShelfAnalysis,
+        layout: {
+          ...state.currentShelfAnalysis.layout,
+          slots: updatedSlots,
+          products: updatedProducts
+        },
+        metrics: {
+          totalSlots,
+          occupiedSlots,
+          utilization: (occupiedSlots / totalSlots) * 100,
+          revenue
+        }
+      };
+
+      set({ currentShelfAnalysis: updatedAnalysis });
+    } catch (error) {
+      console.error('Error removing product from shelf:', error);
+    }
   },
 
-  moveProduct: (fromSlotId, toSlotId) => {
+  moveProduct: async (fromSlotId: string, toSlotId: string) => {
     const state = get();
     if (!state.currentShelfAnalysis) return;
 
@@ -202,6 +337,9 @@ export const useProductStore = create<ProductStore>((set, get) => ({
 
     if (!fromSlot || !toSlot || !fromSlot.productId || toSlot.isOccupied) return;
 
+    // When moving products, we don't need to update the server because the products array doesn't change
+    // We're just rearranging them in the UI. The server doesn't track position within the shelf.
+    
     const updatedSlots = state.currentShelfAnalysis.layout.slots.map(slot => {
       if (slot.id === fromSlotId) {
         return { ...slot, productId: undefined, isOccupied: false };
@@ -223,7 +361,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     set({ currentShelfAnalysis: updatedAnalysis });
   },
 
-  generateShelfGrid: (width, height, slotSize) => {
+  generateShelfGrid: (width: number, height: number, slotSize: number): ShelfSlot[] => {
     const slots: ShelfSlot[] = [];
     const rows = Math.floor(height / slotSize);
     const columns = Math.floor(width / slotSize);
@@ -244,7 +382,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     return slots;
   },
 
-  getProductsByCategory: (category) => {
+  getProductsByCategory: (category: string): Product[] => {
     const state = get();
     return state.availableProducts.filter(product => 
       product.category.toLowerCase().includes(category.toLowerCase()) ||
@@ -252,7 +390,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     );
   },
 
-  clearShelfAnalysis: () => {
+  clearShelfAnalysis: (): void => {
     set({ 
       currentShelfAnalysis: null, 
       selectedShelfId: null 

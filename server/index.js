@@ -46,6 +46,7 @@ mongoose.connect(process.env.MONGO_URI)
 console.log('Setting up routes...');
 app.use('/api/store', require('./routes/store'));
 app.use('/api/shelves', require('./routes/shelves'));
+app.use('/api/products', require('./routes/products'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

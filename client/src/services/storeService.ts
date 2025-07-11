@@ -1,4 +1,4 @@
-import { Store, Zone, Shelf } from '@/types';
+import { Store, Zone, Shelf, Product } from '@/types';
 
 // Use Next.js built-in dev detection
 // const API_STORE_URL = process.env.NODE_ENV === 'production' 
@@ -7,6 +7,7 @@ import { Store, Zone, Shelf } from '@/types';
 
 const API_STORE_URL = "https://proto-8b15.onrender.com/api/store"
 const API_SHELVES_URL = "http://localhost:5000/api/shelves"
+const API_PRODUCTS_URL = "http://localhost:5000/api/products"
 console.log('Environment:', process.env.NODE_ENV);
 console.log('API URL:', API_STORE_URL);
 
@@ -253,6 +254,96 @@ export async function deleteAllShelvesInZone(zoneId: string): Promise<void> {
     console.log('All shelves in zone deleted successfully');
   } catch (error) {
     console.error('Error deleting all shelves:', error);
+    throw error;
+  }
+}
+
+// Product API Services
+
+export async function fetchProductsForShelf(zoneId: string, shelfId: string): Promise<Product[]> {
+  try {
+    console.log(`Fetching products for shelf ${shelfId} in zone ${zoneId}`);
+    const response = await fetch(`${API_PRODUCTS_URL}/${zoneId}/${shelfId}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch products: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    const products = await response.json();
+    console.log(`Found ${products.length} products for shelf ${shelfId}`);
+    return products;
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    throw error;
+  }
+}
+
+export async function addProductToShelf(zoneId: string, shelfId: string, product: Omit<Product, 'id'>): Promise<Product> {
+  try {
+    console.log(`Adding product to shelf ${shelfId} in zone ${zoneId}`);
+    const response = await fetch(`${API_PRODUCTS_URL}/${zoneId}/${shelfId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(product),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to add product: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    const newProduct = await response.json();
+    console.log('Product added successfully:', newProduct);
+    return newProduct;
+  } catch (error) {
+    console.error('Error adding product:', error);
+    throw error;
+  }
+}
+
+export async function removeProductFromShelf(zoneId: string, shelfId: string, productId: string): Promise<void> {
+  try {
+    console.log(`Removing product ${productId} from shelf ${shelfId} in zone ${zoneId}`);
+    const response = await fetch(`${API_PRODUCTS_URL}/${zoneId}/${shelfId}/${productId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to remove product: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    console.log('Product removed successfully');
+  } catch (error) {
+    console.error('Error removing product:', error);
+    throw error;
+  }
+}
+
+export async function updateProduct(zoneId: string, shelfId: string, productId: string, updates: Partial<Product>): Promise<Product> {
+  try {
+    console.log(`Updating product ${productId} in shelf ${shelfId}`);
+    const response = await fetch(`${API_PRODUCTS_URL}/${zoneId}/${shelfId}/${productId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update product: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    const updatedProduct = await response.json();
+    console.log('Product updated successfully:', updatedProduct);
+    return updatedProduct;
+  } catch (error) {
+    console.error('Error updating product:', error);
     throw error;
   }
 }

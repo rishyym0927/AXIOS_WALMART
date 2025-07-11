@@ -1,5 +1,40 @@
 const mongoose = require('mongoose');
 
+// Define schema for a product
+const ProductSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true
+  },
+  name: {
+    type: String,
+    required: true
+  },
+  category: {
+    type: String,
+    required: true
+  },
+  width: {
+    type: Number,
+    required: true
+  },
+  height: {
+    type: Number,
+    required: true
+  },
+  depth: {
+    type: Number,
+    required: true
+  },
+  color: {
+    type: String,
+    required: true
+  },
+  price: {
+    type: Number
+  }
+});
+
 // Define schema for a shelf
 const ShelfSchema = new mongoose.Schema({
   id: {
@@ -37,6 +72,10 @@ const ShelfSchema = new mongoose.Schema({
   isOverlapping: {
     type: Boolean,
     default: false
+  },
+  products: {
+    type: [ProductSchema],
+    default: []
   }
 });
 

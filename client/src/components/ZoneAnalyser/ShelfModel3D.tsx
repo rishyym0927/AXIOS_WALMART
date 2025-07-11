@@ -31,11 +31,11 @@ export default function ShelfModel3D({ shelf, isSelected, onSelect }: ShelfModel
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     
-    // Check for double-click to open product analysis modal
+    // Check for double-click to navigate to product page
     const currentTime = Date.now();
     if (currentTime - lastClickTime < 300) {
-      // Double click detected - select shelf to open product analysis
-      onSelect();
+      // Double click detected - navigate to shelf product page
+      window.location.href = `/shelf/${shelf.id}`;
       return;
     }
     setLastClickTime(currentTime);
