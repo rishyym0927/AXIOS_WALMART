@@ -32,10 +32,14 @@ class AIService {
 
       const suggestions = this.parseAIResponse(text, storeWidth, storeHeight, existingZones);
       
-      // Validate and fix overlapping zones
+      // Validate, fix overlapping zones, and optimize space usage
       return suggestions.map(suggestion => ({
         ...suggestion,
-        zones: this.validateAndFixLayout(suggestion.zones, storeWidth, storeHeight)
+        zones: this.optimizeSpaceUtilization(
+          this.validateAndFixLayout(suggestion.zones, storeWidth, storeHeight),
+          storeWidth,
+          storeHeight
+        )
       }));
     } catch (error) {
       console.error('Error generating AI suggestions:', error);
@@ -65,9 +69,18 @@ Total zone area: ${totalZoneArea}m² (${utilizationRate}% of store space)
 CRITICAL REQUIREMENTS:
 1. NO OVERLAPPING ZONES - Each zone must have its own space
 2. ALL zones must fit completely within the ${width}m x ${height}m store boundaries
-3. Leave minimum 1m walkways between zones where possible
-4. Position zones logically based on retail best practices
-5. Consider customer flow patterns (entrance typically at bottom-left or bottom-center)
+3. MAXIMIZE SPACE UTILIZATION - Zones should be sized to use most of the available space
+4. Leave minimum 1m walkways between zones where possible
+5. Position zones logically based on retail best practices
+6. Consider customer flow patterns (entrance typically at bottom-left or bottom-center)
+7. IMPORTANT: The zones can be resized larger than their original dimensions to fill the space efficiently
+
+SPACE OPTIMIZATION STRATEGY:
+- Calculate the total available space and distribute it among zones
+- Priority zones (like Cash Counter, Electronics) should get premium space allocation
+- Zones can be expanded proportionally to fill unused areas
+- Maintain logical proportions (don't make tiny zones huge or huge zones tiny)
+- Target 85-95% space utilization for efficient layouts
 
 Create 3 different layout strategies:
 
@@ -76,18 +89,21 @@ STRATEGY 1 - CUSTOMER FLOW OPTIMIZATION:
 - Create natural walking paths through the store
 - Position checkout/cash counter near exit
 - Ensure smooth traffic flow without bottlenecks
+- EXPAND zones to fill available space while maintaining flow
 
 STRATEGY 2 - REVENUE MAXIMIZATION:
 - Position high-margin categories in prime real estate
 - Use power wall concepts (right-hand traffic flow)
 - Place impulse-buy items near checkout
 - Create discovery zones for new products
+- ALLOCATE MORE SPACE to high-revenue generating zones
 
 STRATEGY 3 - OPERATIONAL EFFICIENCY:
 - Group zones by supply chain logistics
 - Minimize staff walking distances
 - Optimize for easy restocking and inventory management
 - Position storage-intensive categories efficiently
+- BALANCE zone sizes for operational needs
 
 LAYOUT CALCULATION RULES:
 - Start positioning from coordinates (0,0) at top-left
@@ -96,14 +112,23 @@ LAYOUT CALCULATION RULES:
 - Each zone position (x,y) is its TOP-LEFT corner
 - Zone must fit: x + width ≤ ${width} and y + height ≤ ${height}
 - NO two zones can overlap: check that zones don't share the same space
+- RESIZE zones to maximize space usage - zones can be larger than original sizes
+
+SPACE ALLOCATION GUIDELINES:
+- Cash Counter: Can be 1.5-2x original size for queue management
+- Electronics: Can be expanded significantly for display space
+- Grocery/Food: Should use substantial floor space for variety
+- Fashion: Benefits from larger space for browsing
+- Storage: Keep efficient but don't over-expand
 
 RESPONSE FORMAT - Return valid JSON only:
 {
   "suggestions": [
     {
       "name": "Customer Flow Optimized Layout",
-      "description": "Detailed explanation of flow strategy and zone positioning logic",
+      "description": "Detailed explanation of flow strategy and space optimization",
       "efficiency": 85,
+      "spaceUtilization": 92,
       "zones": [
         {
           "name": "Zone Name",
@@ -117,14 +142,16 @@ RESPONSE FORMAT - Return valid JSON only:
     },
     {
       "name": "Revenue Maximized Layout", 
-      "description": "Detailed explanation of revenue strategy and positioning",
+      "description": "Detailed explanation of revenue strategy and space allocation",
       "efficiency": 88,
+      "spaceUtilization": 95,
       "zones": [...]
     },
     {
       "name": "Operational Efficiency Layout",
-      "description": "Detailed explanation of operational strategy", 
+      "description": "Detailed explanation of operational strategy and space optimization", 
       "efficiency": 82,
+      "spaceUtilization": 88,
       "zones": [...]
     }
   ]
@@ -142,7 +169,7 @@ ZONE COLORS BY TYPE:
 - Toys: #6366f1 (indigo)
 - Storage/Warehouse: #64748b (gray)
 
-IMPORTANT: Double-check that no zones overlap and all fit within ${width}m x ${height}m boundaries!
+CRITICAL: Maximize space utilization by expanding zones to fill available space while maintaining logical proportions and ensuring no overlaps!
 `;
   }
 
@@ -168,8 +195,9 @@ IMPORTANT: Double-check that no zones overlap and all fit within ${width}m x ${h
       return parsed.suggestions.map((suggestion: any, index: number) => ({
         id: `ai-${Date.now()}-${index}`,
         name: suggestion.name || `Layout ${index + 1}`,
-        description: suggestion.description || 'AI-generated layout',
+        description: suggestion.description || 'AI-generated layout with space optimization',
         efficiency: Math.max(1, Math.min(100, suggestion.efficiency || 75)),
+        spaceUtilization: Math.max(1, Math.min(100, suggestion.spaceUtilization || 85)),
         zones: suggestion.zones?.map((zone: any, zoneIndex: number) => ({
           id: `zone-${Date.now()}-${index}-${zoneIndex}`,
           name: zone.name,
@@ -206,6 +234,131 @@ IMPORTANT: Double-check that no zones overlap and all fit within ${width}m x ${h
     }
 
     return placedZones;
+  }
+
+  private optimizeSpaceUtilization(zones: Zone[], storeWidth: number, storeHeight: number): Zone[] {
+    if (!zones || zones.length === 0) return [];
+
+    // Calculate current space utilization
+    const currentUsedArea = zones.reduce((sum, zone) => sum + (zone.width * zone.height), 0);
+    const totalArea = storeWidth * storeHeight;
+    const currentUtilization = currentUsedArea / totalArea;
+
+    // If utilization is already high (>85%), don't modify
+    if (currentUtilization > 0.85) {
+      return zones;
+    }
+
+    // Calculate expansion opportunities
+    const optimizedZones = [...zones];
+    const targetUtilization = 0.90; // Target 90% utilization
+    const expansionFactor = Math.sqrt(targetUtilization / currentUtilization);
+
+    // Expand zones while maintaining proportions and avoiding overlaps
+    for (let i = 0; i < optimizedZones.length; i++) {
+      const zone = optimizedZones[i];
+      const otherZones = optimizedZones.filter((_, index) => index !== i);
+
+      // Calculate maximum possible expansion
+      const maxExpansion = this.calculateMaxExpansion(zone, otherZones, storeWidth, storeHeight);
+      
+      // Apply expansion with priority weighting
+      const priority = this.getZonePriority(zone.name);
+      const finalExpansion = Math.min(expansionFactor * priority, maxExpansion);
+
+      // Expand the zone
+      const newWidth = Math.min(zone.width * finalExpansion, storeWidth - zone.x);
+      const newHeight = Math.min(zone.height * finalExpansion, storeHeight - zone.y);
+
+      optimizedZones[i] = {
+        ...zone,
+        width: Math.max(zone.width, newWidth),
+        height: Math.max(zone.height, newHeight),
+      };
+    }
+
+    // Final validation to ensure no overlaps
+    return this.resolveOverlaps(optimizedZones, storeWidth, storeHeight);
+  }
+
+  private calculateMaxExpansion(
+    zone: Zone,
+    otherZones: Zone[],
+    storeWidth: number,
+    storeHeight: number
+  ): number {
+    let maxWidthExpansion = (storeWidth - zone.x) / zone.width;
+    let maxHeightExpansion = (storeHeight - zone.y) / zone.height;
+
+    // Check constraints from other zones
+    for (const otherZone of otherZones) {
+      // Right expansion limit
+      if (otherZone.x > zone.x && otherZone.y < zone.y + zone.height && otherZone.y + otherZone.height > zone.y) {
+        maxWidthExpansion = Math.min(maxWidthExpansion, (otherZone.x - zone.x) / zone.width);
+      }
+
+      // Bottom expansion limit
+      if (otherZone.y > zone.y && otherZone.x < zone.x + zone.width && otherZone.x + otherZone.width > zone.x) {
+        maxHeightExpansion = Math.min(maxHeightExpansion, (otherZone.y - zone.y) / zone.height);
+      }
+    }
+
+    return Math.min(maxWidthExpansion, maxHeightExpansion);
+  }
+
+  private getZonePriority(zoneName: string): number {
+    const name = zoneName.toLowerCase();
+    
+    // High priority zones get more expansion
+    if (name.includes('grocery') || name.includes('food')) return 1.4;
+    if (name.includes('electronics')) return 1.3;
+    if (name.includes('fashion') || name.includes('clothing')) return 1.2;
+    if (name.includes('cash') || name.includes('checkout')) return 1.1;
+    if (name.includes('books') || name.includes('media')) return 1.0;
+    if (name.includes('home') || name.includes('garden')) return 1.2;
+    if (name.includes('sports')) return 1.1;
+    if (name.includes('beauty') || name.includes('health')) return 1.1;
+    if (name.includes('toys')) return 1.0;
+    if (name.includes('storage') || name.includes('warehouse')) return 0.8;
+    
+    return 1.0; // Default priority
+  }
+
+  private resolveOverlaps(zones: Zone[], storeWidth: number, storeHeight: number): Zone[] {
+    const resolvedZones: Zone[] = [];
+    
+    for (const zone of zones) {
+      let adjustedZone = { ...zone };
+      
+      // Check for overlaps with already resolved zones
+      for (const resolvedZone of resolvedZones) {
+        if (this.zonesOverlap(adjustedZone, resolvedZone)) {
+          // Shrink the current zone to avoid overlap
+          adjustedZone = this.shrinkZoneToAvoidOverlap(adjustedZone, resolvedZone, storeWidth, storeHeight);
+        }
+      }
+      
+      resolvedZones.push(adjustedZone);
+    }
+    
+    return resolvedZones;
+  }
+
+  private shrinkZoneToAvoidOverlap(
+    zone: Zone,
+    conflictZone: Zone,
+    storeWidth: number,
+    storeHeight: number
+  ): Zone {
+    // Try to shrink width first
+    const maxWidth = conflictZone.x > zone.x ? conflictZone.x - zone.x : zone.width;
+    const maxHeight = conflictZone.y > zone.y ? conflictZone.y - zone.y : zone.height;
+    
+    return {
+      ...zone,
+      width: Math.max(1, Math.min(zone.width, maxWidth)),
+      height: Math.max(1, Math.min(zone.height, maxHeight)),
+    };
   }
 
   private findValidPosition(
@@ -284,10 +437,14 @@ IMPORTANT: Double-check that no zones overlap and all fit within ${width}m x ${h
       {
         id: 'fallback-1',
         name: 'Customer Flow Optimized Layout',
-        description: 'Strategic positioning to guide customers through high-value areas with natural flow patterns',
+        description: 'Strategic positioning with maximized space utilization for optimal customer flow',
         efficiency: 85,
-        zones: this.validateAndFixLayout(
-          this.createFlowOptimizedLayout(zones, storeWidth, storeHeight),
+        zones: this.optimizeSpaceUtilization(
+          this.validateAndFixLayout(
+            this.createFlowOptimizedLayout(zones, storeWidth, storeHeight),
+            storeWidth,
+            storeHeight
+          ),
           storeWidth,
           storeHeight
         ),
@@ -295,10 +452,14 @@ IMPORTANT: Double-check that no zones overlap and all fit within ${width}m x ${h
       {
         id: 'fallback-2',
         name: 'Revenue Maximized Layout',
-        description: 'High-margin products in prime locations with optimized customer journey for maximum sales',
+        description: 'High-margin products in prime locations with optimized space allocation for maximum sales',
         efficiency: 90,
-        zones: this.validateAndFixLayout(
-          this.createRevenueOptimizedLayout(zones, storeWidth, storeHeight),
+        zones: this.optimizeSpaceUtilization(
+          this.validateAndFixLayout(
+            this.createRevenueOptimizedLayout(zones, storeWidth, storeHeight),
+            storeWidth,
+            storeHeight
+          ),
           storeWidth,
           storeHeight
         ),
@@ -306,10 +467,14 @@ IMPORTANT: Double-check that no zones overlap and all fit within ${width}m x ${h
       {
         id: 'fallback-3',
         name: 'Operational Efficiency Layout',
-        description: 'Minimized staff movement and optimized logistics flow for efficient store operations',
-        efficiency: 80,
-        zones: this.validateAndFixLayout(
-          this.createEfficiencyOptimizedLayout(zones, storeWidth, storeHeight),
+        description: 'Minimized staff movement with balanced space utilization for efficient operations',
+        efficiency: 82,
+        zones: this.optimizeSpaceUtilization(
+          this.validateAndFixLayout(
+            this.createEfficiencyOptimizedLayout(zones, storeWidth, storeHeight),
+            storeWidth,
+            storeHeight
+          ),
           storeWidth,
           storeHeight
         ),
@@ -330,9 +495,9 @@ IMPORTANT: Double-check that no zones overlap and all fit within ${width}m x ${h
         x = 1;
         y = 1; // Prime entrance location
       } else {
-        // Distribute other zones
-        const cols = Math.floor(storeWidth / 8);
-        const rows = Math.floor(storeHeight / 6);
+        // Distribute other zones efficiently
+        const cols = Math.max(1, Math.floor(storeWidth / 8));
+        const rows = Math.max(1, Math.floor(storeHeight / 6));
         x = 1 + (index % cols) * Math.floor(storeWidth / Math.max(cols, 1));
         y = 1 + Math.floor(index / cols) * Math.floor(storeHeight / Math.max(rows, 1));
       }
@@ -353,15 +518,15 @@ IMPORTANT: Double-check that no zones overlap and all fit within ${width}m x ${h
 
       // Revenue optimization: high-margin items in power positions
       if (zone.name.toLowerCase().includes('electronics')) {
-        x = Math.floor(storeWidth * 0.7); // Right wall (power wall)
+        x = Math.max(1, Math.floor(storeWidth * 0.6)); // Right side power position
         y = 1;
       } else if (zone.name.toLowerCase().includes('cash')) {
-        x = Math.floor(storeWidth * 0.6);
-        y = Math.floor(storeHeight * 0.8);
+        x = Math.max(1, Math.floor(storeWidth * 0.7));
+        y = Math.max(1, Math.floor(storeHeight * 0.7));
       } else {
         // Strategic placement for other zones
-        x = 1 + (index % 2) * Math.floor(storeWidth * 0.5);
-        y = 1 + Math.floor(index / 2) * Math.floor(storeHeight * 0.4);
+        x = 1 + (index % 2) * Math.floor(storeWidth * 0.4);
+        y = 1 + Math.floor(index / 2) * Math.floor(storeHeight * 0.3);
       }
 
       return {

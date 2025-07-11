@@ -37,7 +37,8 @@ export default function ShelfCanvas({
 
   const handleCanvasClick = (event: any) => {
     // Only deselect if clicking on empty space
-    if (event.intersections.length === 0) {
+    // Check if event and intersections exist before accessing length
+    if (!event?.intersections || event.intersections.length === 0) {
       selectShelf(null);
     }
   };
