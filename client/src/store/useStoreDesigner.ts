@@ -20,7 +20,8 @@ interface StoreState {
   // Actions
   setStoreDimensions: (width: number, height: number) => Promise<void>;
   addZone: (zone: Omit<Zone, 'id'>) => Promise<void>;
-  updateZone: (id: string, updates: Partial<Zone>) => Promise<void>;
+  updateZone: (id: string, updates: Partial<Zone>, showLoading?: boolean) => Promise<void>;
+  updateZoneImmediate: (id: string, updates: Partial<Zone>) => void;
   deleteZone: (id: string) => Promise<void>;
   selectZone: (zone: Zone | null) => void;
   setEditingZone: (isEditing: boolean) => void;
@@ -88,6 +89,9 @@ const doZonesOverlap = (zone1: Zone, zone2: Zone): boolean => {
     zone1.y >= zone2.y + zone2.height
   );
 };
+
+// Debounce map to store timeouts for zone updates
+const updateTimeouts = new Map<string, NodeJS.Timeout>();
 
 export const useStoreDesigner = create<StoreState>()(
   devtools(
@@ -181,11 +185,14 @@ export const useStoreDesigner = create<StoreState>()(
         }
       },
 
-      updateZone: async (id: string, updates: Partial<Zone>) => {
+      updateZone: async (id: string, updates: Partial<Zone>, showLoading: boolean = true) => {
         try {
-          set({ isLoading: true, error: null });
+          // Only show loading for explicit user actions, not drag operations
+          if (showLoading) {
+            set({ isLoading: true, error: null });
+          }
           
-          // Optimistic update
+          // Always update the UI immediately for smooth interactions
           set((state) => ({
             store: {
               ...state.store,
@@ -198,23 +205,76 @@ export const useStoreDesigner = create<StoreState>()(
               : state.selectedZone,
           }));
           
-          // Actual server update
-          const updatedStore = await storeService.updateZone(id, updates);
-          
-          // Update with server response
-          set({ store: updatedStore });
-          
+          // Recalculate overlaps and metrics immediately
           get().detectOverlaps();
           get().calculateLayoutMetrics();
+
+          // Clear any existing timeout for this zone
+          const existingTimeout = updateTimeouts.get(id);
+          if (existingTimeout) {
+            clearTimeout(existingTimeout);
+          }
+
+          // Debounce the server update to avoid too many API calls during dragging
+          const timeoutId = setTimeout(async () => {
+            try {
+              // Actual server update
+              const updatedStore = await storeService.updateZone(id, updates);
+              
+              // Update with server response (this ensures consistency)
+              set({ store: updatedStore });
+              
+              get().detectOverlaps();
+              get().calculateLayoutMetrics();
+            } catch (error) {
+              console.error('Error updating zone on server:', error);
+              set({ error: 'Failed to update zone on server.' });
+              
+              // Revert optimistic update by fetching fresh data
+              get().fetchStoreFromServer();
+            } finally {
+              if (showLoading) {
+                set({ isLoading: false });
+              }
+            }
+
+            // Clean up the timeout reference
+            updateTimeouts.delete(id);
+          }, 500); // 500ms debounce
+
+          // Store the timeout reference
+          updateTimeouts.set(id, timeoutId);
+
+          // If not showing loading, resolve immediately
+          if (!showLoading) {
+            // Immediately resolve for drag operations
+            return;
+          }
         } catch (error) {
-          console.error('Error updating zone:', error);
-          set({ error: 'Failed to update zone on server.' });
-          
-          // Revert optimistic update by fetching fresh data
-          get().fetchStoreFromServer();
-        } finally {
-          set({ isLoading: false });
+          console.error('Error in updateZone:', error);
+          if (showLoading) {
+            set({ error: 'Failed to update zone.', isLoading: false });
+          }
         }
+      },
+
+      // Immediate update without server sync - for real-time drag operations
+      updateZoneImmediate: (id: string, updates: Partial<Zone>) => {
+        set((state) => ({
+          store: {
+            ...state.store,
+            zones: state.store.zones.map((zone) =>
+              zone.id === id ? { ...zone, ...updates } : zone
+            ),
+          },
+          selectedZone: state.selectedZone?.id === id 
+            ? { ...state.selectedZone, ...updates } 
+            : state.selectedZone,
+        }));
+        
+        // Recalculate overlaps and metrics immediately
+        get().detectOverlaps();
+        get().calculateLayoutMetrics();
       },
 
       deleteZone: async (id: string) => {

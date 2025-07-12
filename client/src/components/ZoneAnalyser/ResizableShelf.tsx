@@ -1,10 +1,10 @@
 'use client';
 
-import { useRef, useState, useCallback, useEffect } from 'react';
-import { ThreeEvent, useFrame, useThree } from '@react-three/fiber';
+import React, { useRef, useMemo, useEffect, useCallback } from 'react';
+import { useThree, useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { Shelf } from '@/types';
 import * as THREE from 'three';
+import { Shelf } from '@/types';
 import { SHELF_CATEGORIES } from './ShelfForm';
 
 interface ResizableShelfProps {
@@ -12,201 +12,368 @@ interface ResizableShelfProps {
   zoneWidth: number;
   zoneHeight: number;
   onUpdate: (id: string, updates: Partial<Shelf>) => void;
+  onUpdateImmediate?: (id: string, updates: Partial<Shelf>) => void;
   onSelect: (shelf: Shelf) => void;
   isSelected: boolean;
 }
 
-export default function ResizableShelf({
-  shelf,
-  zoneWidth,
-  zoneHeight,
-  onUpdate,
-  onSelect,
-  isSelected
+function ResizableShelf({ 
+  shelf, 
+  zoneWidth, 
+  zoneHeight, 
+  onUpdate, 
+  onUpdateImmediate,
+  onSelect, 
+  isSelected 
 }: ResizableShelfProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<THREE.Vector3 | null>(null);
-  const [startPosition, setStartPosition] = useState({ x: 0, y: 0 });
-  const [lastClickTime, setLastClickTime] = useState(0);
-  const { raycaster, camera, mouse } = useThree();
-
-  // Track pointer movement even when not directly over the object
-  useFrame(() => {
-    if (isDragging && dragStart && meshRef.current) {
-      // Cast ray from current mouse position
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects([], true);
-      
-      // Find ground plane intersection point
-      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-      const ray = new THREE.Ray(raycaster.ray.origin, raycaster.ray.direction);
-      const target = new THREE.Vector3();
-      
-      if (ray.intersectPlane(groundPlane, target)) {
-        // Calculate movement delta from drag start
-        const dx = target.x - dragStart.x;
-        const dz = target.z - dragStart.z;
-        
-        // Calculate new shelf position
-        let newX = startPosition.x + dx;
-        let newY = startPosition.y + dz;
-        
-        // Constrain to zone boundaries
-        newX = Math.max(0, Math.min(zoneWidth - shelf.width, newX));
-        newY = Math.max(0, Math.min(zoneHeight - shelf.height, newY));
-        
-        // Only update if position actually changed
-        if (newX !== shelf.x || newY !== shelf.y) {
-          onUpdate(shelf.id, { x: newX, y: newY });
-        }
-      }
-    }
+  const { camera, raycaster, gl } = useThree();
+  
+  // State for smooth interactions
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [isResizing, setIsResizing] = React.useState(false);
+  const [resizeHandle, setResizeHandle] = React.useState<'corner' | 'right' | 'bottom' | null>(null);
+  const [hoverHandle, setHoverHandle] = React.useState<'corner' | 'right' | 'bottom' | null>(null);
+  
+  // Use refs for tracking to avoid stale closures
+  const dragStateRef = useRef({
+    isDragging: false,
+    isResizing: false,
+    resizeHandle: null as 'corner' | 'right' | 'bottom' | null,
+    startMousePos: { x: 0, y: 0 },
+    startShelfState: { x: 0, y: 0, width: 0, height: 0 },
+    lastValidUpdate: Date.now()
   });
 
-  const handlePointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    // Use native DOM methods for pointer capture
-    if (event.nativeEvent && event.nativeEvent.target) {
-      (event.nativeEvent.target as HTMLElement).setPointerCapture(event.pointerId);
-    }
-    
-    const currentTime = Date.now();
- 
-    setLastClickTime(currentTime);
-    
-    // Select shelf immediately on pointer down
-    onSelect(shelf);
-    
-    // Start dragging and record starting positions
-    setIsDragging(true);
-    setDragStart(event.point.clone());
-    setStartPosition({ x: shelf.x, y: shelf.y });
-    
-    document.body.style.cursor = 'grabbing';
-  }, [shelf, onSelect, lastClickTime]);
+  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
+  const raycasterPoint = useMemo(() => new THREE.Vector3(), []);
 
-  const handlePointerUp = useCallback((event: ThreeEvent<PointerEvent>) => {
-    // Use native DOM methods for pointer release
-    if (event.nativeEvent && event.nativeEvent.target) {
-      (event.nativeEvent.target as HTMLElement).releasePointerCapture(event.pointerId);
+  // Helper function to get mouse world position
+  const getWorldPosition = useCallback((event: MouseEvent) => {
+    const rect = gl.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    
+    raycaster.setFromCamera(mouse, camera);
+    raycaster.ray.intersectPlane(plane, raycasterPoint);
+    return { x: raycasterPoint.x, z: raycasterPoint.z };
+  }, [camera, raycaster, plane, raycasterPoint, gl]);
+
+  // Throttled update function for smoother performance during dragging
+  const throttledUpdate = useCallback((updates: Partial<Shelf>) => {
+    const now = Date.now();
+    if (now - dragStateRef.current.lastValidUpdate > 16) { // ~60fps
+      // Use immediate update during dragging for smooth interaction
+      if (onUpdateImmediate && (dragStateRef.current.isDragging || dragStateRef.current.isResizing)) {
+        onUpdateImmediate(shelf.id, updates);
+      } else {
+        // Use regular update for non-drag operations
+        onUpdate(shelf.id, updates);
+      }
+      dragStateRef.current.lastValidUpdate = now;
     }
+  }, [onUpdate, onUpdateImmediate, shelf.id]);
+
+  const handlePointerDown = useCallback((event: any) => {
+    event.stopPropagation();
+    
+    const intersect = event.intersections[0];
+    if (!intersect) return;
+
+    const localPoint = intersect.point;
+    
+    // Store initial state
+    dragStateRef.current.startMousePos = { x: localPoint.x, y: localPoint.z };
+    dragStateRef.current.startShelfState = { 
+      x: shelf.x, 
+      y: shelf.y, 
+      width: shelf.width, 
+      height: shelf.height 
+    };
+    
+    // Determine interaction type with better edge detection
+    const edgeThreshold = Math.min(shelf.width, shelf.height) * 0.15; // Proportional threshold
+    const minThreshold = 0.2; // Minimum threshold for small shelves
+    const threshold = Math.max(edgeThreshold, minThreshold);
+    
+    const rightEdge = shelf.x + shelf.width;
+    const bottomEdge = shelf.y + shelf.height;
+    
+    const isNearRightEdge = Math.abs(localPoint.x - rightEdge) < threshold;
+    const isNearBottomEdge = Math.abs(localPoint.z - bottomEdge) < threshold;
+    
+    if (isNearRightEdge && isNearBottomEdge) {
+      dragStateRef.current.isResizing = true;
+      dragStateRef.current.resizeHandle = 'corner';
+      setIsResizing(true);
+      setResizeHandle('corner');
+    } else if (isNearRightEdge) {
+      dragStateRef.current.isResizing = true;
+      dragStateRef.current.resizeHandle = 'right';
+      setIsResizing(true);
+      setResizeHandle('right');
+    } else if (isNearBottomEdge) {
+      dragStateRef.current.isResizing = true;
+      dragStateRef.current.resizeHandle = 'bottom';
+      setIsResizing(true);
+      setResizeHandle('bottom');
+    } else {
+      // Start dragging
+      dragStateRef.current.isDragging = true;
+      setIsDragging(true);
+    }
+    
+    onSelect(shelf);
+  }, [shelf, onSelect]);
+
+  // Global mouse move handler for smoother tracking
+  const handleMouseMove = useCallback((event: MouseEvent) => {
+    if (!dragStateRef.current.isDragging && !dragStateRef.current.isResizing) return;
+
+    const worldPos = getWorldPosition(event);
+    const deltaX = worldPos.x - dragStateRef.current.startMousePos.x;
+    const deltaZ = worldPos.z - dragStateRef.current.startMousePos.y;
+
+    if (dragStateRef.current.isDragging) {
+      // Dragging with bounds checking
+      const newX = Math.max(0, Math.min(
+        dragStateRef.current.startShelfState.x + deltaX, 
+        zoneWidth - shelf.width
+      ));
+      const newY = Math.max(0, Math.min(
+        dragStateRef.current.startShelfState.y + deltaZ, 
+        zoneHeight - shelf.height
+      ));
+      
+      throttledUpdate({ x: newX, y: newY });
+    } else if (dragStateRef.current.isResizing && dragStateRef.current.resizeHandle) {
+      // Resizing with constraints
+      let newWidth = dragStateRef.current.startShelfState.width;
+      let newHeight = dragStateRef.current.startShelfState.height;
+
+      const minSize = 0.5; // Minimum shelf size
+      const maxWidth = zoneWidth - shelf.x;
+      const maxHeight = zoneHeight - shelf.y;
+      
+      if (dragStateRef.current.resizeHandle === 'corner' || dragStateRef.current.resizeHandle === 'right') {
+        newWidth = Math.max(minSize, Math.min(
+          dragStateRef.current.startShelfState.width + deltaX, 
+          maxWidth
+        ));
+      }
+      
+      if (dragStateRef.current.resizeHandle === 'corner' || dragStateRef.current.resizeHandle === 'bottom') {
+        newHeight = Math.max(minSize, Math.min(
+          dragStateRef.current.startShelfState.height + deltaZ, 
+          maxHeight
+        ));
+      }
+      
+      throttledUpdate({ width: newWidth, height: newHeight });
+    }
+  }, [getWorldPosition, zoneWidth, zoneHeight, shelf.width, shelf.height, shelf.x, shelf.y, throttledUpdate]);
+
+  const handleMouseUp = useCallback(() => {
+    // If we were dragging or resizing, save the final state to the server
+    if (dragStateRef.current.isDragging || dragStateRef.current.isResizing) {
+      // Calculate the final position/size based on current shelf state
+      const finalUpdates: Partial<Shelf> = {
+        x: shelf.x,
+        y: shelf.y,
+        width: shelf.width,
+        height: shelf.height
+      };
+      
+      // Save to server with loading indicator
+      onUpdate(shelf.id, finalUpdates);
+    }
+    
+    dragStateRef.current.isDragging = false;
+    dragStateRef.current.isResizing = false;
+    dragStateRef.current.resizeHandle = null;
     
     setIsDragging(false);
-    setDragStart(null);
-    
-    document.body.style.cursor = isSelected ? 'grab' : 'pointer';
-  }, [isSelected]);
+    setIsResizing(false);
+    setResizeHandle(null);
+  }, [shelf.x, shelf.y, shelf.width, shelf.height, shelf.id, onUpdate]);
 
-  const handlePointerOut = useCallback(() => {
-    // Just change cursor, don't end drag operation when pointer leaves object
-    if (!isDragging) {
-      document.body.style.cursor = 'default';
+  // Hover detection for cursor changes
+  const handlePointerMove = useCallback((event: any) => {
+    if (isDragging || isResizing || !isSelected) return;
+
+    const intersect = event.intersections[0];
+    if (!intersect) return;
+
+    const localPoint = intersect.point;
+    const edgeThreshold = Math.min(shelf.width, shelf.height) * 0.15;
+    const minThreshold = 0.2;
+    const threshold = Math.max(edgeThreshold, minThreshold);
+    
+    const rightEdge = shelf.x + shelf.width;
+    const bottomEdge = shelf.y + shelf.height;
+    
+    const isNearRightEdge = Math.abs(localPoint.x - rightEdge) < threshold;
+    const isNearBottomEdge = Math.abs(localPoint.z - bottomEdge) < threshold;
+    
+    if (isNearRightEdge && isNearBottomEdge) {
+      setHoverHandle('corner');
+    } else if (isNearRightEdge) {
+      setHoverHandle('right');
+    } else if (isNearBottomEdge) {
+      setHoverHandle('bottom');
+    } else {
+      setHoverHandle(null);
     }
-  }, [isDragging]);
+  }, [isDragging, isResizing, isSelected, shelf.width, shelf.height, shelf.x, shelf.y]);
 
-  const handlePointerOver = useCallback((event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    document.body.style.cursor = isDragging ? 'grabbing' : isSelected ? 'grab' : 'pointer';
-  }, [isDragging, isSelected]);
-
-  // Update document cursor when component unmounts
+  // Setup global event listeners
   useEffect(() => {
-    return () => {
-      document.body.style.cursor = 'default';
-    };
-  }, []);
-
-  const getShelfColor = () => {
-    if (shelf.isOverlapping) return '#ef4444'; // Red for overlapping
-    if (isSelected) return '#3b82f6'; // Blue when selected
+    const canvas = gl.domElement;
     
-    // Use SHELF_CATEGORIES to maintain consistency with the rest of the UI
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mouseleave', handleMouseUp);
+    
+    return () => {
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mouseleave', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp, gl]);
+
+  // Update cursor based on hover state
+  useEffect(() => {
+    const canvas = gl.domElement;
+    if (isDragging) {
+      canvas.style.cursor = 'grabbing';
+    } else if (isResizing) {
+      canvas.style.cursor = resizeHandle === 'corner' ? 'nw-resize' : 
+                           resizeHandle === 'right' ? 'e-resize' : 'n-resize';
+    } else if (isSelected) {
+      canvas.style.cursor = hoverHandle === 'corner' ? 'nw-resize' : 
+                           hoverHandle === 'right' ? 'e-resize' : 
+                           hoverHandle === 'bottom' ? 'n-resize' : 'grab';
+    } else {
+      canvas.style.cursor = 'default';
+    }
+    
+    return () => {
+      canvas.style.cursor = 'default';
+    };
+  }, [isDragging, isResizing, isSelected, hoverHandle, resizeHandle, gl]);
+
+  const geometry = useMemo(() => {
+    return new THREE.PlaneGeometry(shelf.width, shelf.height);
+  }, [shelf.width, shelf.height]);
+
+  const material = useMemo(() => {
     const categoryObj = SHELF_CATEGORIES.find(cat => cat.value === shelf.category);
-    return categoryObj?.color || '#6b7280';
-  };
+    const baseColor = shelf.isOverlapping ? '#ef4444' : (categoryObj?.color || '#6b7280');
+    
+    return new THREE.MeshBasicMaterial({
+      color: baseColor,
+      transparent: true,
+      opacity: isSelected ? 0.9 : 0.7,
+      side: THREE.DoubleSide,
+    });
+  }, [shelf.category, shelf.isOverlapping, isSelected]);
 
   return (
-    <group position={[shelf.x + shelf.width/2, 0.5, shelf.y + shelf.height/2]}>
-      {/* Shelf base */}
+    <group position={[shelf.x + shelf.width / 2, 0.1, shelf.y + shelf.height / 2]}>
       <mesh
         ref={meshRef}
+        geometry={geometry}
+        material={material}
+        rotation={[-Math.PI / 2, 0, 0]}
         onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerOut={handlePointerOut}
-        onPointerOver={handlePointerOver}
-        position={[0, 0, 0]}
-      >
-        <boxGeometry args={[shelf.width, 1, shelf.height]} />
-        <meshLambertMaterial 
-          color={getShelfColor()} 
-          transparent 
-          opacity={isSelected ? 0.9 : 0.7}
+        onPointerMove={handlePointerMove}
+        onPointerOver={() => {
+          if (meshRef.current && meshRef.current.material) {
+            (meshRef.current.material as THREE.MeshBasicMaterial).opacity = 1;
+          }
+        }}
+        onPointerOut={() => {
+          if (meshRef.current && meshRef.current.material) {
+            (meshRef.current.material as THREE.MeshBasicMaterial).opacity = isSelected ? 0.9 : 0.7;
+          }
+          setHoverHandle(null);
+        }}
+      />
+      
+      {/* Shelf border */}
+      <lineSegments position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <edgesGeometry args={[geometry]} />
+        <lineBasicMaterial 
+          color={shelf.isOverlapping ? '#ef4444' : (isSelected ? '#ffffff' : '#000000')} 
+          linewidth={2} 
         />
-      </mesh>
-      
-      {/* Selection outline */}
-      {isSelected && (
-        <lineSegments position={[0, 0.51, 0]}>
-          <edgesGeometry args={[new THREE.BoxGeometry(shelf.width, 1, shelf.height)]} />
-          <lineBasicMaterial color="#ffffff" linewidth={3} />
-        </lineSegments>
-      )}
-      
-      {/* Overlap warning outline */}
-      {shelf.isOverlapping && (
-        <lineSegments position={[0, 0.52, 0]}>
-          <edgesGeometry args={[new THREE.BoxGeometry(shelf.width + 0.1, 1, shelf.height + 0.1)]} />
-          <lineBasicMaterial color="#ef4444" linewidth={2} />
-        </lineSegments>
-      )}
-      
-      {/* Shelf label */}
-      <Text
-        position={[0, 1.2, 0]}
-        rotation={[-Math.PI/2, 0, 0]}
-        fontSize={Math.min(shelf.width, shelf.height) * 0.3}
-        color={isSelected ? "#ffffff" : "#000000"}
-        anchorX="center"
-        anchorY="middle"
-        maxWidth={shelf.width * 0.9}
-        textAlign="center"
-      >
-        {shelf.name}
-      </Text>
-      
-      {/* Category badge */}
-      {isSelected && (
-        <>
-          <Text
-            position={[0, 1.6, 0]}
-            rotation={[-Math.PI/2, 0, 0]}
-            fontSize={Math.min(shelf.width, shelf.height) * 0.2}
-            color="#666666"
-            anchorX="center"
-            anchorY="middle"
-            textAlign="center"
-          >
-            {shelf.category}
-          </Text>
-          
-    
-        </>
-      )}
-      
-      {/* Overlap warning icon */}
+      </lineSegments>
+
+      {/* Warning for overlapping shelves */}
       {shelf.isOverlapping && (
         <Text
-          position={[shelf.width/2 - 0.3, 1.8, shelf.height/2 - 0.3]}
-          rotation={[-Math.PI/2, 0, 0]}
-          fontSize={0.5}
+          position={[0, 0.5, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          fontSize={Math.min(shelf.width, shelf.height) * 0.15}
           color="#ef4444"
           anchorX="center"
           anchorY="middle"
         >
-          ⚠
+          !
         </Text>
+      )}
+
+      {/* Shelf label */}
+      <Text
+        position={[0, 0.2, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        fontSize={Math.min(shelf.width, shelf.height) * 0.2}
+        color="#000000"
+        anchorX="center"
+        anchorY="middle"
+        maxWidth={shelf.width * 0.8}
+      >
+        {shelf.name}
+      </Text>
+
+      {/* Enhanced resize handles with hover effects */}
+      {isSelected && (
+        <>
+          {/* Corner resize handle (bottom-right) */}
+          <mesh position={[shelf.width / 2 - 0.15, 0.15, shelf.height / 2 - 0.15]}>
+            <boxGeometry args={[0.3, 0.2, 0.3]} />
+            <meshBasicMaterial 
+              color={hoverHandle === 'corner' ? '#7c3aed' : '#9333ea'} 
+              transparent
+              opacity={hoverHandle === 'corner' ? 1 : 0.8}
+            />
+          </mesh>
+          
+          {/* Right edge resize handle */}
+          <mesh position={[shelf.width / 2 - 0.05, 0.15, 0]}>
+            <boxGeometry args={[0.1, 0.2, shelf.height * 0.8]} />
+            <meshBasicMaterial 
+              color={hoverHandle === 'right' ? '#059669' : '#10b981'} 
+              transparent 
+              opacity={hoverHandle === 'right' ? 1 : 0.8}
+            />
+          </mesh>
+          
+          {/* Bottom edge resize handle */}
+          <mesh position={[0, 0.15, shelf.height / 2 - 0.05]}>
+            <boxGeometry args={[shelf.width * 0.8, 0.2, 0.1]} />
+            <meshBasicMaterial 
+              color={hoverHandle === 'bottom' ? '#059669' : '#10b981'} 
+              transparent 
+              opacity={hoverHandle === 'bottom' ? 1 : 0.8}
+            />
+          </mesh>
+        </>
       )}
     </group>
   );
 }
+
+export default ResizableShelf;

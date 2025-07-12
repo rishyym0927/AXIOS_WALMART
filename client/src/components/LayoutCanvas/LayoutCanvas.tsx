@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import { useStoreDesigner } from '@/store/useStoreDesigner';
+import { Zone } from '@/types';
 import CameraController from './CameraController';
 import CameraControls3D from './3DCameraControls';
 import StoreFloor from './StoreFloor';
@@ -16,6 +17,7 @@ export default function LayoutCanvas() {
     store, 
     selectedZone, 
     updateZone, 
+    updateZoneImmediate,
     selectZone, 
     layoutMetrics,
     calculateLayoutMetrics,
@@ -49,6 +51,17 @@ export default function LayoutCanvas() {
 
   const decrease3DZoom = () => {
     setCameraHeight(prev => Math.min(prev * 1.2, Math.max(store.width, store.height) * 5));
+  };
+
+  // Create wrapper functions for zone updates
+  const handleZoneUpdate = (id: string, updates: Partial<Zone>) => {
+    // Use the regular updateZone with showLoading=false for drag operations
+    updateZone(id, updates, false);
+  };
+
+  const handleZoneUpdateImmediate = (id: string, updates: Partial<Zone>) => {
+    // Use immediate update for real-time dragging
+    updateZoneImmediate(id, updates);
   };
 
   return (
@@ -95,7 +108,8 @@ export default function LayoutCanvas() {
                 zone={zone}
                 storeWidth={store.width}
                 storeHeight={store.height}
-                onUpdate={updateZone}
+                onUpdate={handleZoneUpdate}
+                onUpdateImmediate={handleZoneUpdateImmediate}
                 onSelect={selectZone}
                 isSelected={selectedZone?.id === zone.id}
               />

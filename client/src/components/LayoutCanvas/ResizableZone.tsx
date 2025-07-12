@@ -10,6 +10,7 @@ function ResizableZone({
   storeWidth, 
   storeHeight, 
   onUpdate, 
+  onUpdateImmediate,
   onSelect, 
   isSelected 
 }: {
@@ -17,6 +18,7 @@ function ResizableZone({
   storeWidth: number;
   storeHeight: number;
   onUpdate: (id: string, updates: Partial<Zone>) => void;
+  onUpdateImmediate?: (id: string, updates: Partial<Zone>) => void;
   onSelect: (zone: Zone) => void;
   isSelected: boolean;
 }) {
@@ -56,14 +58,20 @@ function ResizableZone({
     return { x: raycasterPoint.x, z: raycasterPoint.z };
   }, [camera, raycaster, plane, raycasterPoint, gl]);
 
-  // Throttled update function for smoother performance
+  // Throttled update function for smoother performance during dragging
   const throttledUpdate = useCallback((updates: Partial<Zone>) => {
     const now = Date.now();
     if (now - dragStateRef.current.lastValidUpdate > 16) { // ~60fps
-      onUpdate(zone.id, updates);
+      // Use immediate update during dragging for smooth interaction
+      if (onUpdateImmediate && (dragStateRef.current.isDragging || dragStateRef.current.isResizing)) {
+        onUpdateImmediate(zone.id, updates);
+      } else {
+        // Use regular update for non-drag operations
+        onUpdate(zone.id, updates);
+      }
       dragStateRef.current.lastValidUpdate = now;
     }
-  }, [onUpdate, zone.id]);
+  }, [onUpdate, onUpdateImmediate, zone.id]);
 
   const handlePointerDown = useCallback((event: any) => {
     event.stopPropagation();
@@ -170,6 +178,20 @@ function ResizableZone({
   }, [getWorldPosition, storeWidth, storeHeight, zone.width, zone.height, zone.x, zone.y, throttledUpdate]);
 
   const handleMouseUp = useCallback(() => {
+    // If we were dragging or resizing, save the final state to the server
+    if (dragStateRef.current.isDragging || dragStateRef.current.isResizing) {
+      // Calculate the final position/size based on current zone state
+      const finalUpdates: Partial<Zone> = {
+        x: zone.x,
+        y: zone.y,
+        width: zone.width,
+        height: zone.height
+      };
+      
+      // Save to server with loading indicator
+      onUpdate(zone.id, finalUpdates);
+    }
+    
     dragStateRef.current.isDragging = false;
     dragStateRef.current.isResizing = false;
     dragStateRef.current.resizeHandle = null;
@@ -177,7 +199,7 @@ function ResizableZone({
     setIsDragging(false);
     setIsResizing(false);
     setResizeHandle(null);
-  }, []);
+  }, [zone.x, zone.y, zone.width, zone.height, zone.id, onUpdate]);
 
   // Hover detection for cursor changes
   const handlePointerMove = useCallback((event: any) => {

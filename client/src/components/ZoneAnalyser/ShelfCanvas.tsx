@@ -33,7 +33,8 @@ export default function ShelfCanvas({
     shelves, 
     selectedShelf, 
     selectShelf, 
-    updateShelf
+    updateShelf,
+    updateShelfImmediate
   } = useShelfStore();
   
   // Track if any shelf is being dragged to inform camera controller
@@ -48,8 +49,20 @@ export default function ShelfCanvas({
       // This helps ensure smooth movement until the user completely stops
       setTimeout(() => setIsDraggingAnyShelf(false), 100);
     }
-    // Call the actual update function
-    updateShelf(id, updates);
+    // Call the actual update function with showLoading=true for final saves
+    updateShelf(id, updates, true);
+  };
+
+  // Immediate update handler for smooth dragging
+  const handleShelfUpdateImmediate = (id: string, updates: Partial<Shelf>) => {
+    // If position is being updated, we're likely dragging
+    if ('x' in updates || 'y' in updates) {
+      setIsDraggingAnyShelf(true);
+      // Use setTimeout to reset dragging flag after a brief delay
+      setTimeout(() => setIsDraggingAnyShelf(false), 100);
+    }
+    // Call the immediate update function for smooth real-time updates
+    updateShelfImmediate(id, updates);
   };
 
   const handleCanvasClick = (event: any) => {
@@ -155,6 +168,7 @@ export default function ShelfCanvas({
                 zoneWidth={zone.width}
                 zoneHeight={zone.height}
                 onUpdate={handleShelfUpdate}
+                onUpdateImmediate={handleShelfUpdateImmediate}
                 onSelect={selectShelf}
                 isSelected={selectedShelf?.id === shelf.id}
               />
@@ -187,11 +201,19 @@ export default function ShelfCanvas({
         <div className="font-semibold text-gray-800 mb-2">💡 Shelf Management:</div>
         <ul className="text-gray-600 space-y-1">
           <li>• <strong>Click</strong> to select shelf</li>
-          <li>• <strong>Drag</strong> to move shelf (2D mode)</li>
-
-          <li>• Use <strong>Product Analysis button</strong> in metrics panel</li>
-          <li>• Selected shelf shows <strong>product placement options</strong></li>
+          <li>• <strong>Drag</strong> to move shelf</li>
+          <li>• <strong>Drag edges/corners</strong> to resize</li>
+          <li>• Use <strong>Product Analysis button</strong> in sidebar</li>
+          <li>• Selected shelf shows <strong>resize handles</strong></li>
         </ul>
+        {selectedShelf && (
+          <div className="mt-2 pt-2 border-t border-gray-200">
+            <div className="text-blue-600 font-medium text-xs">Selected: {selectedShelf.name}</div>
+            <div className="text-xs text-gray-500">
+              Drag anywhere to move, or drag edges to resize
+            </div>
+          </div>
+        )}
       </div>
       
     </div>

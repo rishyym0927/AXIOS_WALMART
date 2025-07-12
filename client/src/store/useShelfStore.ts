@@ -18,7 +18,8 @@ interface ShelfState {
   
   // Actions
   addShelf: (shelf: Omit<Shelf, 'id'>) => void;
-  updateShelf: (id: string, updates: Partial<Shelf>) => void;
+  updateShelf: (id: string, updates: Partial<Shelf>, showLoading?: boolean) => void;
+  updateShelfImmediate: (id: string, updates: Partial<Shelf>) => void;
   deleteShelf: (id: string) => void;
   selectShelf: (shelf: Shelf | null) => void;
   loadShelvesForZone: (zoneId: string) => void;
@@ -84,37 +85,71 @@ export const useShelfStore = create<ShelfState>()(
         }
       },
       
-      updateShelf: async (id, updates) => {
+      updateShelf: async (id, updates, showLoading: boolean = true) => {
         try {
-          const { currentZoneId, shelves } = get();
+          const { currentZoneId } = get();
           
           if (!currentZoneId) {
             console.error('Cannot update shelf: No zone selected');
             return;
           }
-          
-          // Update shelf through API
-          await apiUpdateShelf(currentZoneId, id, updates);
-          
-          // Update local state
-          set(state => ({
-            shelves: state.shelves.map(shelf => 
-              shelf.id === id ? { ...shelf, ...updates } : shelf
-            ),
-            selectedShelf: state.selectedShelf?.id === id 
-              ? { ...state.selectedShelf, ...updates } 
-              : state.selectedShelf,
-          }));
-          
-          get().detectShelfOverlaps();
-          
-          // Recalculate metrics when shelves are updated
-          const { zoneWidth, zoneHeight } = get();
-          if (zoneWidth > 0 && zoneHeight > 0) {
-            get().calculateShelfMetrics(zoneWidth, zoneHeight);
+
+          if (showLoading) {
+            // For final updates, call the API and wait
+            await apiUpdateShelf(currentZoneId, id, updates);
+            
+            // Update local state
+            set(state => ({
+              shelves: state.shelves.map(shelf => 
+                shelf.id === id ? { ...shelf, ...updates } : shelf
+              ),
+              selectedShelf: state.selectedShelf?.id === id 
+                ? { ...state.selectedShelf, ...updates } 
+                : state.selectedShelf,
+            }));
+            
+            get().detectShelfOverlaps();
+            
+            // Recalculate metrics when shelves are updated
+            const { zoneWidth, zoneHeight } = get();
+            if (zoneWidth > 0 && zoneHeight > 0) {
+              get().calculateShelfMetrics(zoneWidth, zoneHeight);
+            }
+          } else {
+            // For drag operations, just update locally and defer API call
+            set(state => ({
+              shelves: state.shelves.map(shelf => 
+                shelf.id === id ? { ...shelf, ...updates } : shelf
+              ),
+              selectedShelf: state.selectedShelf?.id === id 
+                ? { ...state.selectedShelf, ...updates } 
+                : state.selectedShelf,
+            }));
+            
+            get().detectShelfOverlaps();
+            get().calculateShelfMetrics(get().zoneWidth, get().zoneHeight);
           }
         } catch (error) {
           console.error('Failed to update shelf:', error);
+        }
+      },
+
+      updateShelfImmediate: (id: string, updates: Partial<Shelf>) => {
+        // Immediate update without server sync - for real-time drag operations
+        set(state => ({
+          shelves: state.shelves.map(shelf => 
+            shelf.id === id ? { ...shelf, ...updates } : shelf
+          ),
+          selectedShelf: state.selectedShelf?.id === id 
+            ? { ...state.selectedShelf, ...updates } 
+            : state.selectedShelf,
+        }));
+        
+        // Recalculate overlaps and metrics immediately
+        get().detectShelfOverlaps();
+        const { zoneWidth, zoneHeight } = get();
+        if (zoneWidth > 0 && zoneHeight > 0) {
+          get().calculateShelfMetrics(zoneWidth, zoneHeight);
         }
       },
       
