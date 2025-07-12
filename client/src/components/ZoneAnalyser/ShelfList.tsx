@@ -3,10 +3,12 @@
 import React, { useState } from 'react';
 import { useShelfStore } from '@/store/useShelfStore';
 import { Shelf, Zone } from '@/types';
-import { Plus, Layers, Zap, Filter, Trash2, Copy, Grid, RotateCcw, Eye, EyeOff, ZoomIn, ZoomOut } from 'lucide-react';
+import { Plus, Layers, Zap, Filter, Trash2, Copy, Grid, RotateCcw, Eye, EyeOff, ZoomIn, ZoomOut, Bot } from 'lucide-react';
 import ShelfForm from './ShelfForm';
 import ShelfItem from './ShelfItem';
 import { ShelfAnalyser } from './ShelfAnalyser';
+import ShelfAISuggestions from './ShelfAISuggestions';
+import ShelfAIDemo from './ShelfAIDemo';
 
 interface ShelfListProps {
   zone: Zone;
@@ -39,6 +41,8 @@ export default function ShelfList({
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [analyzeShelfId, setAnalyzeShelfId] = useState<string | null>(null);
+  const [showAISuggestions, setShowAISuggestions] = useState(false);
+  const [showAIDemo, setShowAIDemo] = useState(false);
 
   const filteredShelves = categoryFilter 
     ? shelves.filter(shelf => shelf.category === categoryFilter)
@@ -237,9 +241,7 @@ export default function ShelfList({
             ⚠ Overlapping shelves detected
           </div>
         )}
-      </div>
-
-      {/* Action buttons */}
+      </div>      {/* Action buttons */}
       <div className="space-y-2">
         <button
           onClick={() => setShowAddForm(true)}
@@ -248,7 +250,25 @@ export default function ShelfList({
           <Plus size={18} />
           Add New Shelf
         </button>
-        
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setShowAISuggestions(true)}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-2 px-3 rounded-md hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 flex items-center justify-center gap-2 font-medium transition-all text-sm"
+          >
+            <Bot size={14} />
+            AI Optimizer
+          </button>
+          
+          <button
+            onClick={() => setShowAIDemo(true)}
+            className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-2 px-3 rounded-md hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center gap-2 font-medium transition-all text-sm"
+          >
+            <Layers size={14} />
+            AI Demo
+          </button>
+        </div>
+
         {shelves.length > 0 && (
           <>
             <div className="grid grid-cols-2 gap-2">
@@ -399,6 +419,38 @@ export default function ShelfList({
           shelfId={analyzeShelfId}
           onClose={() => setAnalyzeShelfId(null)}
         />
+      )}
+
+      {/* Shelf AI Suggestions Modal */}
+      {showAISuggestions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-auto">
+            <ShelfAISuggestions
+              zone={zone}
+              onClose={() => setShowAISuggestions(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Shelf AI Demo Modal */}
+      {showAIDemo && (
+        <ShelfAIDemo
+          zone={zone}
+          onClose={() => setShowAIDemo(false)}
+        />
+      )}
+
+      {/* Shelf AI Demo Modal */}
+      {showAIDemo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-auto">
+            <ShelfAIDemo
+              zone={zone}
+              onClose={() => setShowAIDemo(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

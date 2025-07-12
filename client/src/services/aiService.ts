@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { Zone, LayoutSuggestion } from '@/types';
+import { Zone, LayoutSuggestion, Shelf } from '@/types';
 
 class AIService {
   private genAI: GoogleGenerativeAI | null = null;
@@ -583,6 +583,567 @@ CRITICAL: Maximize space utilization by expanding zones to fill available space 
       '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
     ];
     return colors[Math.floor(Math.random() * colors.length)];
+  }
+
+  async generateShelfOptimizationSuggestions(
+    zone: Zone,
+    existingShelves: Shelf[]
+  ): Promise<{
+    suggestions: Array<{
+      id: string;
+      name: string;
+      description: string;
+      shelves: Shelf[];
+      metrics: {
+        utilization: number;
+        efficiency: number;
+        accessibility: number;
+      };
+    }>;
+  }> {
+    if (!this.genAI) {
+      console.warn('Gemini API key not configured');
+      return {
+        suggestions: this.getFallbackShelfOptimization(zone, existingShelves)
+      };
+    }
+
+    // If no existing shelves, return empty suggestions
+    if (!existingShelves || existingShelves.length === 0) {
+      return {
+        suggestions: [{
+          id: 'no-shelves',
+          name: 'No Shelves to Optimize',
+          description: 'Add some shelves first to optimize their positioning and sizing',
+          shelves: [],
+          metrics: { utilization: 0, efficiency: 0, accessibility: 0 }
+        }]
+      };
+    }
+
+    try {
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+      const prompt = this.createShelfOptimizationPrompt(zone, existingShelves);
+      
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      return this.parseShelfOptimizationResponse(text, zone, existingShelves);
+    } catch (error) {
+      console.error('Error generating shelf optimization suggestions:', error);
+      return {
+        suggestions: this.getFallbackShelfOptimization(zone, existingShelves)
+      };
+    }
+  }
+
+  private createShelfOptimizationPrompt(zone: Zone, shelves: Shelf[]): string {
+    const shelfDescriptions = shelves.map(
+      (shelf) => `${shelf.name}: ${shelf.width}m x ${shelf.height}m at (${shelf.x}, ${shelf.y}) - Category: ${shelf.category}`
+    ).join('\n');
+
+    const totalShelfArea = shelves.reduce((sum, shelf) => sum + (shelf.width * shelf.height), 0);
+    const zoneArea = zone.width * zone.height;
+    const currentUtilization = Math.round((totalShelfArea / zoneArea) * 100);
+
+    return `
+You are a retail shelf optimization expert. Your task is to REPOSITION and RESIZE the existing shelves to maximize space utilization while leaving appropriate walkways for customers.
+
+ZONE DETAILS:
+- Name: ${zone.name}
+- Dimensions: ${zone.width}m x ${zone.height}m (${zoneArea}m²)
+- Current shelf utilization: ${currentUtilization}%
+
+EXISTING SHELVES TO OPTIMIZE (DO NOT CREATE NEW ONES):
+${shelfDescriptions}
+
+OPTIMIZATION OBJECTIVES:
+1. Maximize space utilization (target 75-85% of zone area)
+2. Improve customer flow and accessibility 
+3. Maintain minimum 0.8m walkways between shelves
+4. Eliminate overlapping shelves
+5. Optimize for customer shopping experience
+6. Keep existing shelf categories - just reposition and resize
+
+CONSTRAINTS:
+- MUST include exactly ${shelves.length} shelves (same as existing)
+- MUST use the same shelf names and categories
+- CAN reposition shelves anywhere within zone boundaries
+- CAN resize shelves (minimum 0.5m x 0.3m, maximum zone dimensions)
+- MUST maintain minimum 0.8m gaps between shelves for customer walkways
+- ALL shelves must fit completely within ${zone.width}m x ${zone.height}m zone
+
+SPACE OPTIMIZATION STRATEGIES:
+
+STRATEGY 1 - SPACE MAXIMIZATION:
+- Arrange shelves to eliminate wasted space
+- Resize shelves to fill available area efficiently
+- Create systematic grid or aisle patterns
+- Maintain logical customer flow paths
+- Target 80-85% space utilization
+
+STRATEGY 2 - CUSTOMER FLOW OPTIMIZATION:
+- Position shelves to create natural walking paths
+- Place high-traffic categories near zone entrance
+- Ensure wide main aisles (1.2m+) and secondary walkways (0.8m+)
+- Create intuitive navigation through the zone
+- Target 75-80% space utilization with better accessibility
+
+STRATEGY 3 - CATEGORY GROUPING:
+- Group related shelf categories together
+- Create logical product adjacencies
+- Organize for easy restocking and inventory
+- Maintain efficient staff movement patterns
+- Balance space usage with operational efficiency
+
+POSITIONING GUIDELINES:
+- Coordinates (0,0) = zone top-left corner
+- X-axis: 0 to ${zone.width}m (left to right)
+- Y-axis: 0 to ${zone.height}m (top to bottom)
+- Each shelf position (x,y) = shelf's top-left corner
+- No overlaps: shelf rectangles cannot share space
+- Minimum 0.8m clearance between shelf edges
+
+RESPONSE FORMAT (JSON only):
+{
+  "suggestions": [
+    {
+      "name": "Space Maximized Layout",
+      "description": "Repositioned and resized shelves for maximum space utilization",
+      "utilization": 82,
+      "efficiency": 85,
+      "accessibility": 80,
+      "shelves": [
+        {
+          "id": "existing-shelf-id",
+          "name": "Existing Shelf Name",
+          "category": "existing-category",
+          "x": 0.5,
+          "y": 1.0,
+          "width": 1.5,
+          "height": 0.6
+        }
+      ]
+    },
+    {
+      "name": "Flow Optimized Layout",
+      "description": "Repositioned shelves for optimal customer flow and accessibility",
+      "utilization": 78,
+      "efficiency": 80,
+      "accessibility": 90,
+      "shelves": [...]
+    },
+    {
+      "name": "Category Grouped Layout", 
+      "description": "Organized shelves by category with balanced space usage",
+      "utilization": 75,
+      "efficiency": 88,
+      "accessibility": 85,
+      "shelves": [...]
+    }
+  ]
+}
+
+CRITICAL: Only reposition and resize the ${shelves.length} existing shelves. Do not create new shelves or remove existing ones. Focus on maximizing space utilization while maintaining good customer walkways!
+`;
+  }
+
+  private parseShelfOptimizationResponse(
+    text: string,
+    zone: Zone,
+    existingShelves: Shelf[]
+  ): {
+    suggestions: Array<{
+      id: string;
+      name: string;
+      description: string;
+      shelves: Shelf[];
+      metrics: {
+        utilization: number;
+        efficiency: number;
+        accessibility: number;
+      };
+    }>;
+  } {
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in shelf optimization response');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      if (!parsed.suggestions || !Array.isArray(parsed.suggestions)) {
+        throw new Error('Invalid shelf optimization format');
+      }
+
+      return {
+        suggestions: parsed.suggestions.map((suggestion: any, index: number) => ({
+          id: `shelf-opt-${Date.now()}-${index}`,
+          name: suggestion.name || `Shelf Layout ${index + 1}`,
+          description: suggestion.description || 'AI-optimized shelf arrangement',
+          shelves: this.validateAndOptimizeShelfPositions(
+            suggestion.shelves?.map((shelfData: any, shelfIndex: number) => {
+              // Try to map back to existing shelf or create based on existing shelf data
+              const existingShelf = existingShelves.find(s => s.id === shelfData.id) || 
+                                   existingShelves[shelfIndex] || 
+                                   existingShelves[0]; // fallback
+              
+              return {
+                id: shelfData.id || existingShelf?.id || `shelf-${Date.now()}-${shelfIndex}`,
+                name: shelfData.name || existingShelf?.name || 'Optimized Shelf',
+                category: this.validateShelfCategory(shelfData.category || existingShelf?.category || 'general'),
+                x: Math.max(0, Math.min(shelfData.x || 0, zone.width - (shelfData.width || 1))),
+                y: Math.max(0, Math.min(shelfData.y || 0, zone.height - (shelfData.height || 1))),
+                width: Math.min(shelfData.width || existingShelf?.width || 1.2, zone.width),
+                height: Math.min(shelfData.height || existingShelf?.height || 0.5, zone.height),
+                zoneId: zone.id,
+                isOverlapping: false
+              };
+            }) || [],
+            zone,
+            existingShelves
+          ),
+          metrics: {
+            utilization: Math.max(1, Math.min(100, suggestion.utilization || 75)),
+            efficiency: Math.max(1, Math.min(100, suggestion.efficiency || 75)),
+            accessibility: Math.max(1, Math.min(100, suggestion.accessibility || 75))
+          }
+        }))
+      };
+    } catch (error) {
+      console.error('Error parsing shelf optimization response:', error);
+      return {
+        suggestions: this.getFallbackShelfOptimization(zone, existingShelves)
+      };
+    }
+  }
+
+  private validateAndOptimizeShelfPositions(
+    shelves: Shelf[], 
+    zone: Zone, 
+    existingShelves: Shelf[]
+  ): Shelf[] {
+    if (!shelves || shelves.length === 0) {
+      return existingShelves; // Return original shelves if no optimization provided
+    }
+
+    // Ensure we have the same number of shelves as the existing ones
+    if (shelves.length !== existingShelves.length) {
+      console.warn(`Shelf count mismatch: expected ${existingShelves.length}, got ${shelves.length}. Using fallback optimization.`);
+      return this.createOptimizedShelfLayout(existingShelves, zone);
+    }
+
+    // Validate and fix positions
+    const validatedShelves: Shelf[] = [];
+    
+    for (let i = 0; i < shelves.length; i++) {
+      const shelf = shelves[i];
+      const originalShelf = existingShelves[i];
+      
+      // Ensure shelf fits in zone
+      let validShelf = {
+        ...shelf,
+        id: originalShelf.id, // Keep original ID
+        zoneId: zone.id,
+        x: Math.max(0, Math.min(shelf.x, zone.width - shelf.width)),
+        y: Math.max(0, Math.min(shelf.y, zone.height - shelf.height)),
+        width: Math.max(0.5, Math.min(shelf.width, zone.width)),
+        height: Math.max(0.3, Math.min(shelf.height, zone.height)),
+        isOverlapping: false
+      };
+
+      // Check for overlaps with already placed shelves
+      const hasOverlap = validatedShelves.some(existing => 
+        this.doShelvesOverlap(validShelf, existing, 0.8) // 0.8m minimum gap
+      );
+      
+      if (hasOverlap) {
+        // Try to find a valid position
+        const validPosition = this.findValidShelfPosition(validShelf, validatedShelves, zone);
+        if (validPosition) {
+          validShelf.x = validPosition.x;
+          validShelf.y = validPosition.y;
+        } else {
+          // If no valid position found, use a fallback position
+          const fallbackPosition = this.findFallbackPosition(i, existingShelves.length, zone);
+          validShelf.x = fallbackPosition.x;
+          validShelf.y = fallbackPosition.y;
+          validShelf.width = Math.min(validShelf.width, zone.width - validShelf.x);
+          validShelf.height = Math.min(validShelf.height, zone.height - validShelf.y);
+        }
+      }
+      
+      validatedShelves.push(validShelf);
+    }
+    
+    return validatedShelves;
+  }
+
+  private createOptimizedShelfLayout(existingShelves: Shelf[], zone: Zone): Shelf[] {
+    // Simple grid-based optimization for existing shelves
+    const optimized: Shelf[] = [];
+    const shelfGap = 0.8; // Minimum gap between shelves
+    const marginsX = 0.5;
+    const marginsY = 0.5;
+    
+    const availableWidth = zone.width - (2 * marginsX);
+    const availableHeight = zone.height - (2 * marginsY);
+    
+    // Calculate optimal grid layout
+    const shelvesPerRow = Math.max(1, Math.floor(Math.sqrt(existingShelves.length)));
+    const rows = Math.ceil(existingShelves.length / shelvesPerRow);
+    
+    const cellWidth = (availableWidth - (shelvesPerRow - 1) * shelfGap) / shelvesPerRow;
+    const cellHeight = (availableHeight - (rows - 1) * shelfGap) / rows;
+    
+    existingShelves.forEach((shelf, index) => {
+      const row = Math.floor(index / shelvesPerRow);
+      const col = index % shelvesPerRow;
+      
+      const x = marginsX + col * (cellWidth + shelfGap);
+      const y = marginsY + row * (cellHeight + shelfGap);
+      
+      optimized.push({
+        ...shelf,
+        x: Math.max(0, x),
+        y: Math.max(0, y),
+        width: Math.min(cellWidth * 0.9, shelf.width, zone.width - x), // 90% of cell width
+        height: Math.min(cellHeight * 0.9, shelf.height, zone.height - y), // 90% of cell height
+        isOverlapping: false
+      });
+    });
+    
+    return optimized;
+  }
+
+  private findFallbackPosition(index: number, totalShelves: number, zone: Zone): { x: number; y: number } {
+    // Simple grid fallback
+    const cols = Math.max(1, Math.floor(Math.sqrt(totalShelves)));
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    
+    const cellWidth = zone.width / cols;
+    const cellHeight = zone.height / Math.ceil(totalShelves / cols);
+    
+    return {
+      x: Math.max(0, col * cellWidth + 0.2),
+      y: Math.max(0, row * cellHeight + 0.2)
+    };
+  }
+
+  private validateShelfPositions(shelves: Shelf[], zone: Zone): Shelf[] {
+    // Ensure no overlaps and all shelves fit within zone
+    const validatedShelves: Shelf[] = [];
+    
+    for (const shelf of shelves) {
+      // Check if shelf fits in zone
+      if (shelf.x + shelf.width <= zone.width && shelf.y + shelf.height <= zone.height) {
+        // Check for overlaps with already placed shelves
+        const hasOverlap = validatedShelves.some(existing => 
+          this.doShelvesOverlap(shelf, existing)
+        );
+        
+        if (!hasOverlap) {
+          validatedShelves.push({ ...shelf, isOverlapping: false });
+        } else {
+          // Try to find a valid position
+          const validPosition = this.findValidShelfPosition(shelf, validatedShelves, zone);
+          if (validPosition) {
+            validatedShelves.push({
+              ...shelf,
+              x: validPosition.x,
+              y: validPosition.y,
+              isOverlapping: false
+            });
+          }
+        }
+      }
+    }
+    
+    return validatedShelves;
+  }
+
+  private doShelvesOverlap(shelf1: Shelf, shelf2: Shelf, minGap: number = 0.1): boolean {
+    return !(
+      shelf1.x + shelf1.width + minGap <= shelf2.x ||
+      shelf2.x + shelf2.width + minGap <= shelf1.x ||
+      shelf1.y + shelf1.height + minGap <= shelf2.y ||
+      shelf2.y + shelf2.height + minGap <= shelf1.y
+    );
+  }
+
+  private findValidShelfPosition(
+    shelf: Shelf,
+    existingShelves: Shelf[],
+    zone: Zone
+  ): { x: number; y: number } | null {
+    const stepSize = 0.2;
+    const minGap = 0.8;
+    
+    for (let y = 0; y <= zone.height - shelf.height; y += stepSize) {
+      for (let x = 0; x <= zone.width - shelf.width; x += stepSize) {
+        const testShelf = { ...shelf, x, y };
+        
+        const hasOverlap = existingShelves.some(existing => 
+          this.doShelvesOverlap(testShelf, existing, minGap)
+        );
+        
+        if (!hasOverlap) {
+          return { x, y };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  private getFallbackShelfOptimization(
+    zone: Zone,
+    existingShelves: Shelf[]
+  ): Array<{
+    id: string;
+    name: string;
+    description: string;
+    shelves: Shelf[];
+    metrics: {
+      utilization: number;
+      efficiency: number;
+      accessibility: number;
+    };
+  }> {
+    // If no existing shelves, return simple message
+    if (!existingShelves || existingShelves.length === 0) {
+      return [{
+        id: `no-shelves-${Date.now()}`,
+        name: "No Shelves Available",
+        description: "Add shelves to this zone first, then use AI optimization to position them optimally",
+        shelves: [],
+        metrics: {
+          utilization: 0,
+          efficiency: 0,
+          accessibility: 0
+        }
+      }];
+    }
+
+    return [
+      {
+        id: `fallback-opt-${Date.now()}-1`,
+        name: "Grid Layout Optimization",
+        description: "Systematic grid-based arrangement of existing shelves for maximum space utilization",
+        shelves: this.createOptimizedShelfLayout(existingShelves, zone),
+        metrics: {
+          utilization: 75,
+          efficiency: 70,
+          accessibility: 85
+        }
+      },
+      {
+        id: `fallback-opt-${Date.now()}-2`,
+        name: "Flow Optimized Layout",
+        description: "Customer flow-focused positioning with wide aisles and logical navigation paths",
+        shelves: this.createFlowOptimizedShelfLayout(existingShelves, zone),
+        metrics: {
+          utilization: 68,
+          efficiency: 75,
+          accessibility: 92
+        }
+      },
+      {
+        id: `fallback-opt-${Date.now()}-3`,
+        name: "Category Grouped Layout",
+        description: "Organized by category with optimized spacing for operational efficiency",
+        shelves: this.createCategoryOptimizedShelfLayout(existingShelves, zone),
+        metrics: {
+          utilization: 72,
+          efficiency: 88,
+          accessibility: 80
+        }
+      }
+    ];
+  }
+
+  private createFlowOptimizedShelfLayout(existingShelves: Shelf[], zone: Zone): Shelf[] {
+    // Create wider aisles and better flow
+    const optimized: Shelf[] = [];
+    const aisleWidth = 1.2; // Wider aisles for better flow
+    const margin = 0.5;
+    
+    const availableWidth = zone.width - (2 * margin);
+    const availableHeight = zone.height - (2 * margin);
+    
+    // Position shelves with emphasis on flow
+    existingShelves.forEach((shelf, index) => {
+      const shelvesPerRow = Math.max(1, Math.floor(availableWidth / (shelf.width + aisleWidth)));
+      const row = Math.floor(index / shelvesPerRow);
+      const col = index % shelvesPerRow;
+      
+      const x = margin + col * (shelf.width + aisleWidth);
+      const y = margin + row * (shelf.height + aisleWidth);
+      
+      optimized.push({
+        ...shelf,
+        x: Math.max(0, Math.min(x, zone.width - shelf.width)),
+        y: Math.max(0, Math.min(y, zone.height - shelf.height)),
+        isOverlapping: false
+      });
+    });
+    
+    return optimized;
+  }
+
+  private createCategoryOptimizedShelfLayout(existingShelves: Shelf[], zone: Zone): Shelf[] {
+    // Group by category and optimize within groups
+    const shelfsByCategory = existingShelves.reduce((acc, shelf) => {
+      if (!acc[shelf.category]) {
+        acc[shelf.category] = [];
+      }
+      acc[shelf.category].push(shelf);
+      return acc;
+    }, {} as Record<string, Shelf[]>);
+    
+    const optimized: Shelf[] = [];
+    let currentY = 0.5;
+    const margin = 0.5;
+    
+    Object.entries(shelfsByCategory).forEach(([category, shelves]) => {
+      let currentX = margin;
+      let maxHeightInGroup = 0;
+      
+      shelves.forEach((shelf) => {
+        // If shelf won't fit in current row, move to next row
+        if (currentX + shelf.width > zone.width - margin) {
+          currentX = margin;
+          currentY += maxHeightInGroup + 0.8; // Gap between category groups
+          maxHeightInGroup = 0;
+        }
+        
+        optimized.push({
+          ...shelf,
+          x: currentX,
+          y: Math.min(currentY, zone.height - shelf.height),
+          isOverlapping: false
+        });
+        
+        currentX += shelf.width + 0.8;
+        maxHeightInGroup = Math.max(maxHeightInGroup, shelf.height);
+      });
+      
+      currentY += maxHeightInGroup + 1.0; // Larger gap between different categories
+    });
+    
+    return optimized;
+  }
+
+  private validateShelfCategory(category: string): string {
+    const validCategories = [
+      'grocery', 'electronics', 'fashion', 'beauty', 'home-garden',
+      'books-media', 'toys', 'sports', 'checkout', 'pharmacy', 'automotive', 'general'
+    ];
+    return validCategories.includes(category) ? category : 'general';
   }
 }
 

@@ -13,13 +13,17 @@ interface ShelfFormProps {
 
 export const SHELF_CATEGORIES = [
   { value: 'general', label: 'General', color: '#6b7280' },
-  { value: 'specialty', label: 'Specialty', color: '#059669' },
-  { value: 'premium', label: 'Premium', color: '#dc2626' },
+  { value: 'grocery', label: 'Grocery', color: '#10b981' },
   { value: 'electronics', label: 'Electronics', color: '#3b82f6' },
-  { value: 'food', label: 'Food & Beverage', color: '#f59e0b' },
-  { value: 'clothing', label: 'Clothing', color: '#8b5cf6' },
-  { value: 'home', label: 'Home & Garden', color: '#06b6d4' },
-  { value: 'health', label: 'Health & Beauty', color: '#ec4899' }
+  { value: 'fashion', label: 'Fashion', color: '#8b5cf6' },
+  { value: 'beauty', label: 'Beauty', color: '#ec4899' },
+  { value: 'home-garden', label: 'Home & Garden', color: '#84cc16' },
+  { value: 'books-media', label: 'Books & Media', color: '#06b6d4' },
+  { value: 'toys', label: 'Toys', color: '#6366f1' },
+  { value: 'sports', label: 'Sports', color: '#f97316' },
+  { value: 'checkout', label: 'Checkout', color: '#f59e0b' },
+  { value: 'pharmacy', label: 'Pharmacy', color: '#ef4444' },
+  { value: 'automotive', label: 'Automotive', color: '#64748b' },
 ];
 
 export default function ShelfForm({ shelf, zone, onSave, onCancel }: ShelfFormProps) {
