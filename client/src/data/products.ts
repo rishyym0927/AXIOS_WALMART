@@ -170,17 +170,29 @@ export const mockProducts: Product[] = [
   { id: 'p169', name: 'Toolbox', category: 'hardware', width: 40, height: 20, depth: 20, color: '#374151', price: 59.99 },
   { id: 'p170', name: 'Cordless Drill', category: 'hardware', width: 30, height: 20, depth: 10, color: '#1f2937', price: 99.99 },
 
-  // Specialty products (existing)
-  { id: 'p21', name: 'Art Supplies', category: 'specialty', width: 30, height: 25, depth: 15, color: '#8b5cf6', price: 89.99 },
-  { id: 'p22', name: 'Guitar Strings', category: 'specialty', width: 12, height: 15, depth: 2, color: '#dc2626', price: 24.99 },
-  { id: 'p23', name: 'Yoga Mat', category: 'specialty', width: 60, height: 20, depth: 5, color: '#10b981', price: 39.99 },
-  { id: 'p24', name: 'Board Game', category: 'specialty', width: 30, height: 30, depth: 8, color: '#f59e0b', price: 34.99 },
+  // Specialty products (expanded)
+  { id: 'p221', name: 'Pottery Wheel', category: 'specialty', width: 50, height: 40, depth: 30, color: '#a21caf', price: 299.99 },
+  { id: 'p222', name: 'Calligraphy Set', category: 'specialty', width: 20, height: 10, depth: 5, color: '#f59e42', price: 49.99 },
+  { id: 'p223', name: 'Model Train Set', category: 'specialty', width: 60, height: 20, depth: 15, color: '#2563eb', price: 159.99 },
+  { id: 'p224', name: 'Rare Coin Collection', category: 'specialty', width: 15, height: 5, depth: 10, color: '#fbbf24', price: 499.99 },
+  { id: 'p225', name: 'Antique Map', category: 'specialty', width: 40, height: 30, depth: 2, color: '#92400e', price: 349.99 },
+  { id: 'p226', name: 'Chess Set (Luxury)', category: 'specialty', width: 40, height: 10, depth: 40, color: '#374151', price: 199.99 },
+  { id: 'p227', name: 'Vintage Vinyl Record', category: 'specialty', width: 32, height: 32, depth: 1, color: '#1e293b', price: 89.99 },
+  { id: 'p228', name: 'Handmade Quilt', category: 'specialty', width: 200, height: 2, depth: 200, color: '#f59e0b', price: 299.99 },
+  { id: 'p229', name: 'Collectible Figurine', category: 'specialty', width: 10, height: 20, depth: 10, color: '#be185d', price: 79.99 },
+  { id: 'p230', name: 'Artisan Soap Set', category: 'specialty', width: 15, height: 8, depth: 10, color: '#fbbf24', price: 29.99 },
 
-  // Premium products (existing)
-  { id: 'p25', name: 'Luxury Watch', category: 'premium', width: 15, height: 8, depth: 5, color: '#374151', price: 2499 },
-  { id: 'p26', name: 'Designer Bag', category: 'premium', width: 35, height: 25, depth: 15, color: '#7c2d12', price: 899 },
-  { id: 'p27', name: 'Perfume', category: 'premium', width: 8, height: 15, depth: 5, color: '#ec4899', price: 159 },
-  { id: 'p28', name: 'Silk Scarf', category: 'premium', width: 25, height: 2, depth: 25, color: '#8b5cf6', price: 129 },
+  // Premium products (expanded)
+  { id: 'p231', name: 'Diamond Necklace', category: 'premium', width: 10, height: 2, depth: 10, color: '#f3f4f6', price: 4999 },
+  { id: 'p232', name: 'Luxury Sunglasses', category: 'premium', width: 15, height: 5, depth: 5, color: '#1e293b', price: 399 },
+  { id: 'p233', name: 'Designer Shoes', category: 'premium', width: 30, height: 15, depth: 35, color: '#7c2d12', price: 599 },
+  { id: 'p234', name: 'Gold Bracelet', category: 'premium', width: 8, height: 2, depth: 8, color: '#f59e0b', price: 799 },
+  { id: 'p235', name: 'Silk Bedding Set', category: 'premium', width: 60, height: 10, depth: 40, color: '#8b5cf6', price: 999 },
+  { id: 'p236', name: 'Luxury Fountain Pen', category: 'premium', width: 15, height: 2, depth: 2, color: '#374151', price: 349 },
+  { id: 'p237', name: 'Premium Whiskey', category: 'premium', width: 10, height: 30, depth: 10, color: '#92400e', price: 499 },
+  { id: 'p238', name: 'Designer Suit', category: 'premium', width: 45, height: 60, depth: 5, color: '#1e40af', price: 1299 },
+  { id: 'p239', name: 'Luxury Perfume Set', category: 'premium', width: 20, height: 15, depth: 10, color: '#ec4899', price: 299 },
+  { id: 'p240', name: 'Platinum Cufflinks', category: 'premium', width: 5, height: 2, depth: 5, color: '#f3f4f6', price: 599 },
 
   // Home products (existing)
   { id: 'p29', name: 'Coffee Mug', category: 'home', width: 12, height: 10, depth: 12, color: '#92400e', price: 14.99 },
