@@ -52,17 +52,6 @@ export default function ZoneAnalyserPage() {
     }
   }, [zone?.id, zone?.width, zone?.height]); // Fixed: removed function dependencies
 
-  // Handle shelf selection for product analysis
-  useEffect(() => {
-    if (selectedShelf) {
-      setSelectedShelf(selectedShelf.id);
-      setShowShelfAnalyser(true);
-    } else {
-      setShowShelfAnalyser(false);
-      clearShelfAnalysis();
-    }
-  }, [selectedShelf?.id]); // Fixed: removed function dependencies and use only the ID
-
   const handleCloseShelfAnalyser = () => {
     setShowShelfAnalyser(false);
     selectShelf(null);

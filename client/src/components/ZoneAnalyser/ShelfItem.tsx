@@ -11,6 +11,7 @@ interface ShelfItemProps {
   onSelect: (shelf: Shelf) => void;
   onEdit: (shelf: Shelf) => void;
   onDelete: (shelfId: string) => void;
+  onAnalyze: () => void;
 }
 
 // Import SHELF_CATEGORIES from ShelfForm to maintain consistency
@@ -26,7 +27,7 @@ const getCategoryLabel = (category: string) => {
   return categoryObj?.label || 'Unknown';
 };
 
-export default function ShelfItem({ shelf, isSelected, onSelect, onEdit, onDelete }: ShelfItemProps) {
+export default function ShelfItem({ shelf, isSelected, onSelect, onEdit, onDelete, onAnalyze }: ShelfItemProps) {
   const router = useRouter();
   
   const handleEdit = (e: React.MouseEvent) => {
@@ -48,8 +49,7 @@ export default function ShelfItem({ shelf, isSelected, onSelect, onEdit, onDelet
 
   const handleAnalyzeProducts = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Navigate to dedicated product management page for this shelf
-    router.push(`/shelf/${shelf.id}`);
+    onAnalyze();
   };
 
   return (

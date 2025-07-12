@@ -31,13 +31,9 @@ export default function ShelfModel3D({ shelf, isSelected, onSelect }: ShelfModel
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     
-    // Check for double-click to navigate to product page
+ 
     const currentTime = Date.now();
-    if (currentTime - lastClickTime < 300) {
-      // Double click detected - navigate to shelf product page
-      window.location.href = `/shelf/${shelf.id}`;
-      return;
-    }
+
     setLastClickTime(currentTime);
     
     onSelect();
@@ -104,17 +100,7 @@ export default function ShelfModel3D({ shelf, isSelected, onSelect }: ShelfModel
             {shelf.category}
           </Text>
           
-          {/* Double-click hint */}
-          <Text
-            position={[0, shelfHeight + 0.9, 0]}
-            fontSize={Math.min(shelf.width, shelf.height) * 0.2}
-            color="#10b981"
-            anchorX="center"
-            anchorY="middle"
-            textAlign="center"
-          >
-            Double-click for products
-          </Text>
+
         </>
       )}
       

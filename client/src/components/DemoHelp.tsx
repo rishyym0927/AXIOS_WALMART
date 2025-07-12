@@ -52,7 +52,6 @@ export default function DemoHelp() {
                     <ul className="text-sm text-gray-600 space-y-1">
                       <li>1. Go to any zone (click on a zone)</li>
                       <li>2. Click a shelf to select it</li>
-                      <li>3. Double-click the shelf in canvas</li>
                       <li>4. Shelf analyser opens in new page</li>
                     </ul>
                   </div>
@@ -101,7 +100,6 @@ export default function DemoHelp() {
                 <ol className="text-green-800 text-sm space-y-1">
                   <li>1. Close this help dialog</li>
                   <li>2. Click on any zone to enter Zone Analyser</li>
-                  <li>3. Select a shelf and double-click it</li>
                   <li>4. Start placing products and see the magic!</li>
                 </ol>
               </div>

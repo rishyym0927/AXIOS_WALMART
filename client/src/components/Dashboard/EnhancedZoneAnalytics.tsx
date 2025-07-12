@@ -1,64 +1,65 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { 
-  MapPin, 
-  TrendingUp, 
-  BarChart3, 
-  Users, 
-  DollarSign, 
-  Layout, 
-  ChevronRight,
-  Activity,
-  Target,
-  Zap,
-  Eye,
-  Filter,
-  Download,
-  RefreshCw,
-  Star,
-  Award,
-  Clock,
-  TrendingDown
-} from 'lucide-react';
+import { MapPin, TrendingUp, BarChart3, Users, DollarSign, Layout, ChevronRight, Activity, Target, Zap, Eye, Filter, Download, RefreshCw, Star, Award, Clock, TrendingDown, AlertTriangle } from 'lucide-react';
 import { useStoreDesigner } from '@/store/useStoreDesigner';
 import { useRouter } from 'next/navigation';
 
-export default function ZoneAnalytics() {
+export default function EnhancedZoneAnalytics() {
   const { store } = useStoreDesigner();
   const router = useRouter();
 
-  // Enhanced performance data for each zone
-  const getZoneMetrics = (zone: any) => ({
-    utilization: Math.floor(Math.random() * 30) + 70, // 70-100%
-    revenue: Math.floor(Math.random() * 200) + 300, // $300-500
-    traffic: Math.floor(Math.random() * 500) + 200, // 200-700 customers
-    efficiency: Math.floor(Math.random() * 25) + 75, // 75-100%
-    conversionRate: Math.floor(Math.random() * 20) + 15, // 15-35%
-    averageSpend: Math.floor(Math.random() * 50) + 25, // $25-75
-    dwellTime: Math.floor(Math.random() * 10) + 5, // 5-15 minutes
-    peakHours: ['10-12', '14-16', '18-20'][Math.floor(Math.random() * 3)],
-    trend: Math.random() > 0.3 ? 'up' : 'down',
-    trendValue: Math.floor(Math.random() * 15) + 5, // 5-20%
-  });
+  // Generate realistic performance data for each zone
+  const getZoneMetrics = (zone: any) => {
+    const area = zone.width * zone.height;
+    const baseMetrics = {
+      electronics: { revenuePerSqM: 500, trafficMultiplier: 1.5, conversionBase: 25 },
+      grocery: { revenuePerSqM: 200, trafficMultiplier: 2.0, conversionBase: 35 },
+      clothing: { revenuePerSqM: 300, trafficMultiplier: 1.2, conversionBase: 20 },
+      default: { revenuePerSqM: 250, trafficMultiplier: 1.0, conversionBase: 22 }
+    };
+
+    const zoneType = zone.name.toLowerCase().includes('electronics') ? 'electronics' :
+                    zone.name.toLowerCase().includes('grocery') ? 'grocery' :
+                    zone.name.toLowerCase().includes('clothing') ? 'clothing' : 'default';
+    
+    const metrics = baseMetrics[zoneType];
+    
+    return {
+      utilization: Math.min(100, Math.round(70 + Math.random() * 30)),
+      revenue: Math.round(area * metrics.revenuePerSqM),
+      traffic: Math.round(area * 10 * metrics.trafficMultiplier + Math.random() * 200),
+      efficiency: Math.min(100, Math.round(75 + Math.random() * 25)),
+      conversionRate: Math.round(metrics.conversionBase + Math.random() * 15),
+      averageSpend: Math.round(25 + Math.random() * 50),
+      dwellTime: Math.round(5 + Math.random() * 10),
+      peakHours: ['10-12', '14-16', '18-20'][Math.floor(Math.random() * 3)],
+      trend: Math.random() > 0.3 ? 'up' : 'down',
+      trendValue: Math.round(5 + Math.random() * 15),
+      alerts: Math.random() > 0.7 ? ['Low conversion rate'] : []
+    };
+  };
 
   const totalRevenue = store.zones.reduce((sum, zone) => {
     const metrics = getZoneMetrics(zone);
-    return sum + (zone.width * zone.height * metrics.revenue);
+    return sum + metrics.revenue;
   }, 0);
 
   const averageUtilization = store.zones.length > 0 
     ? store.zones.reduce((sum, zone) => sum + getZoneMetrics(zone).utilization, 0) / store.zones.length 
     : 0;
 
+  const totalTraffic = store.zones.reduce((sum, zone) => {
+    const metrics = getZoneMetrics(zone);
+    return sum + metrics.traffic;
+  }, 0);
+
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
       {/* Enhanced Header */}
       <div className="relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 px-6 py-6">
-        {/* Background Pattern */}
         <div className="absolute inset-0 bg-black/10"></div>
         <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-20 translate-x-20"></div>
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-16 -translate-x-16"></div>
         
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-6">
@@ -98,6 +99,7 @@ export default function ZoneAnalytics() {
                   <Layout className="w-4 h-4 text-blue-200" />
                 </div>
                 <div className="text-white text-2xl font-bold">{store.zones.length}</div>
+                <div className="text-blue-200 text-xs mt-1">Active zones</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                 <div className="flex items-center justify-between mb-2">
@@ -105,6 +107,7 @@ export default function ZoneAnalytics() {
                   <DollarSign className="w-4 h-4 text-green-300" />
                 </div>
                 <div className="text-white text-2xl font-bold">${(totalRevenue / 1000).toFixed(1)}K</div>
+                <div className="text-green-300 text-xs mt-1">+15% vs last month</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                 <div className="flex items-center justify-between mb-2">
@@ -112,13 +115,17 @@ export default function ZoneAnalytics() {
                   <Target className="w-4 h-4 text-yellow-300" />
                 </div>
                 <div className="text-white text-2xl font-bold">{averageUtilization.toFixed(0)}%</div>
+                <div className="text-yellow-300 text-xs mt-1">
+                  {averageUtilization > 80 ? 'Excellent' : averageUtilization > 60 ? 'Good' : 'Needs improvement'}
+                </div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-blue-200 text-sm font-medium">Active Zones</span>
-                  <Activity className="w-4 h-4 text-green-300" />
+                  <span className="text-blue-200 text-sm font-medium">Daily Traffic</span>
+                  <Users className="w-4 h-4 text-purple-300" />
                 </div>
-                <div className="text-white text-2xl font-bold">{store.zones.length}</div>
+                <div className="text-white text-2xl font-bold">{totalTraffic.toLocaleString()}</div>
+                <div className="text-purple-300 text-xs mt-1">+8% vs yesterday</div>
               </div>
             </div>
           )}
@@ -174,7 +181,7 @@ export default function ZoneAnalytics() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {store.zones.map((zone, index) => {
               const metrics = getZoneMetrics(zone);
               return (
@@ -198,6 +205,12 @@ export default function ZoneAnalytics() {
                         <h4 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors text-lg">{zone.name}</h4>
                       </div>
                       <div className="flex items-center gap-2">
+                        {metrics.alerts.length > 0 && (
+                          <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full border border-yellow-200">
+                            <AlertTriangle className="w-3 h-3" />
+                            Alert
+                          </div>
+                        )}
                         <div className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 bg-green-100 text-green-700 rounded-full border border-green-200">
                           <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
                           Active
@@ -238,16 +251,16 @@ export default function ZoneAnalytics() {
                       <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
                         <div className="flex items-center gap-2">
                           <DollarSign className="w-4 h-4 text-green-600" />
-                          <span className="text-sm font-medium text-green-800">Revenue/m²:</span>
+                          <span className="text-sm font-medium text-green-800">Revenue:</span>
                         </div>
-                        <span className="font-bold text-green-600 text-lg">${metrics.revenue}</span>
+                        <span className="font-bold text-green-600 text-lg">${metrics.revenue.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg border border-purple-100">
                         <div className="flex items-center gap-2">
                           <Users className="w-4 h-4 text-purple-600" />
                           <span className="text-sm font-medium text-purple-800">Daily Traffic:</span>
                         </div>
-                        <span className="font-bold text-purple-600 text-lg">{metrics.traffic}</span>
+                        <span className="font-bold text-purple-600 text-lg">{metrics.traffic.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
                         <div className="flex items-center gap-2">
@@ -292,11 +305,17 @@ export default function ZoneAnalytics() {
                           transition={{ delay: index * 0.1 + 0.5, duration: 1 }}
                         />
                       </div>
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>Poor</span>
-                        <span>Excellent</span>
-                      </div>
                     </div>
+
+                    {/* Alerts */}
+                    {metrics.alerts.length > 0 && (
+                      <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                        <div className="flex items-center gap-2 text-yellow-800">
+                          <AlertTriangle className="w-4 h-4" />
+                          <span className="text-sm font-medium">{metrics.alerts[0]}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Peak Hours Info */}
                     <div className="flex items-center justify-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200 mb-4">
@@ -311,9 +330,6 @@ export default function ZoneAnalytics() {
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
-                  
-                  {/* Hover Gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
                 </motion.div>
               );
             })}

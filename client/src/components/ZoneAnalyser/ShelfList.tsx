@@ -6,6 +6,7 @@ import { Shelf, Zone } from '@/types';
 import { Plus, Layers, Zap, Filter, Trash2, Copy, Grid, RotateCcw, Eye, EyeOff, ZoomIn, ZoomOut } from 'lucide-react';
 import ShelfForm from './ShelfForm';
 import ShelfItem from './ShelfItem';
+import { ShelfAnalyser } from './ShelfAnalyser';
 
 interface ShelfListProps {
   zone: Zone;
@@ -37,6 +38,7 @@ export default function ShelfList({
   const [editingShelfId, setEditingShelfId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [analyzeShelfId, setAnalyzeShelfId] = useState<string | null>(null);
 
   const filteredShelves = categoryFilter 
     ? shelves.filter(shelf => shelf.category === categoryFilter)
@@ -367,6 +369,7 @@ export default function ShelfList({
               onSelect={selectShelf}
               onEdit={handleEditShelf}
               onDelete={deleteShelf}
+              onAnalyze={() => setAnalyzeShelfId(shelf.id)}
             />
           ))}
         </div>
@@ -388,6 +391,14 @@ export default function ShelfList({
             </div>
           )}
         </div>
+      )}
+
+      {/* ShelfAnalyser Modal (local, not on select) */}
+      {analyzeShelfId && (
+        <ShelfAnalyser
+          shelfId={analyzeShelfId}
+          onClose={() => setAnalyzeShelfId(null)}
+        />
       )}
     </div>
   );

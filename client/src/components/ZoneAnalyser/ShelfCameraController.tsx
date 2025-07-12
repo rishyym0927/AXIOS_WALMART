@@ -1,14 +1,20 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
 interface ShelfCameraControllerProps {
   zoneWidth: number;
   zoneHeight: number;
+  isDragging?: boolean; // Add optional prop to receive dragging state
 }
 
-export default function ShelfCameraController({ zoneWidth, zoneHeight }: ShelfCameraControllerProps) {
+export default function ShelfCameraController({ 
+  zoneWidth, 
+  zoneHeight, 
+  isDragging = false 
+}: ShelfCameraControllerProps) {
   const { camera, size } = useThree();
+  const [cameraInitialized, setCameraInitialized] = useState(false);
 
   useEffect(() => {
     if (camera instanceof THREE.OrthographicCamera) {
@@ -23,11 +29,16 @@ export default function ShelfCameraController({ zoneWidth, zoneHeight }: ShelfCa
       camera.top = frustumSize / 2;
       camera.bottom = frustumSize / -2;
       
-      camera.position.set(zoneWidth / 2, 15, zoneHeight / 2);
-      camera.lookAt(zoneWidth / 2, 0, zoneHeight / 2);
+      // Only set the initial camera position if not already initialized
+      if (!cameraInitialized) {
+        camera.position.set(zoneWidth / 2, 15, zoneHeight / 2);
+        camera.lookAt(zoneWidth / 2, 0, zoneHeight / 2);
+        setCameraInitialized(true);
+      }
+      
       camera.updateProjectionMatrix();
     }
-  }, [camera, zoneWidth, zoneHeight, size]);
+  }, [camera, zoneWidth, zoneHeight, size, cameraInitialized, isDragging]);
 
   return null;
 }

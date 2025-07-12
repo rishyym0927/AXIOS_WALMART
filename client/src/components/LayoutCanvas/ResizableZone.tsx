@@ -69,10 +69,10 @@ function ResizableZone({
     event.stopPropagation();
     
     // Check for double-click navigation
-    if (event.detail === 2) {
-      router.push(`/zone/${zone.id}`);
-      return;
-    }
+    // if (event.detail === 2) {
+    //   router.push(`/zone/${zone.id}`);
+    //   return;
+    // }
     
     const intersect = event.intersections[0];
     if (!intersect) return;

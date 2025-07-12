@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import { useShelfStore } from '@/store/useShelfStore';
@@ -8,7 +9,7 @@ import ShelfModel3D from './ShelfModel3D';
 import ShelfCameraController from './ShelfCameraController';
 import ShelfCameraControls3D from './ShelfCameraControls3D';
 import ZoneFloor from './ZoneFloor';
-import { Zone } from '@/types';
+import { Zone, Shelf } from '@/types';
 import * as THREE from 'three';
 
 interface ShelfCanvasProps {
@@ -34,11 +35,27 @@ export default function ShelfCanvas({
     selectShelf, 
     updateShelf
   } = useShelfStore();
+  
+  // Track if any shelf is being dragged to inform camera controller
+  const [isDraggingAnyShelf, setIsDraggingAnyShelf] = useState(false);
+
+  // Custom update handler to track dragging state
+  const handleShelfUpdate = (id: string, updates: Partial<Shelf>) => {
+    // If position is being updated, we're likely dragging
+    if ('x' in updates || 'y' in updates) {
+      setIsDraggingAnyShelf(true);
+      // Use setTimeout to reset dragging flag after a brief delay
+      // This helps ensure smooth movement until the user completely stops
+      setTimeout(() => setIsDraggingAnyShelf(false), 100);
+    }
+    // Call the actual update function
+    updateShelf(id, updates);
+  };
 
   const handleCanvasClick = (event: any) => {
-    // Only deselect if clicking on empty space
+    // Only deselect if clicking on empty space and not during a drag operation
     // Check if event and intersections exist before accessing length
-    if (!event?.intersections || event.intersections.length === 0) {
+    if (!isDraggingAnyShelf && (!event?.intersections || event.intersections.length === 0)) {
       selectShelf(null);
     }
   };
@@ -75,7 +92,11 @@ export default function ShelfCanvas({
         ) : (
           <>
             <OrthographicCamera makeDefault />
-            <ShelfCameraController zoneWidth={zone.width} zoneHeight={zone.height} />
+            <ShelfCameraController 
+              zoneWidth={zone.width} 
+              zoneHeight={zone.height} 
+              isDragging={isDraggingAnyShelf} 
+            />
             <ambientLight intensity={0.6} />
             <directionalLight position={[10, 10, 5]} intensity={0.8} />
             
@@ -133,7 +154,7 @@ export default function ShelfCanvas({
                 shelf={shelf}
                 zoneWidth={zone.width}
                 zoneHeight={zone.height}
-                onUpdate={updateShelf}
+                onUpdate={handleShelfUpdate}
                 onSelect={selectShelf}
                 isSelected={selectedShelf?.id === shelf.id}
               />
@@ -167,7 +188,7 @@ export default function ShelfCanvas({
         <ul className="text-gray-600 space-y-1">
           <li>• <strong>Click</strong> to select shelf</li>
           <li>• <strong>Drag</strong> to move shelf (2D mode)</li>
-          <li>• <strong>Double-click</strong> shelf to analyze products</li>
+
           <li>• Use <strong>Product Analysis button</strong> in metrics panel</li>
           <li>• Selected shelf shows <strong>product placement options</strong></li>
         </ul>

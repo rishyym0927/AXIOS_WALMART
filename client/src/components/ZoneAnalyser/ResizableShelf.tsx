@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { ThreeEvent } from '@react-three/fiber';
+import { useRef, useState, useCallback, useEffect } from 'react';
+import { ThreeEvent, useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import { Shelf } from '@/types';
 import * as THREE from 'three';
@@ -26,73 +26,96 @@ export default function ResizableShelf({
 }: ResizableShelfProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [dragStart, setDragStart] = useState<THREE.Vector3 | null>(null);
+  const [startPosition, setStartPosition] = useState({ x: 0, y: 0 });
   const [lastClickTime, setLastClickTime] = useState(0);
+  const { raycaster, camera, mouse } = useThree();
 
-  const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    
-    // Check for double-click to navigate to product page
-    const currentTime = Date.now();
-    if (currentTime - lastClickTime < 300) {
-      // Double click detected - navigate to the shelf product page
-      const router = require('next/navigation').useRouter();
-      try {
-        window.location.href = `/shelf/${shelf.id}`;
-      } catch (error) {
-        console.error("Error navigating to shelf product page:", error);
-        // Fallback to selection
-        onSelect(shelf);
+  // Track pointer movement even when not directly over the object
+  useFrame(() => {
+    if (isDragging && dragStart && meshRef.current) {
+      // Cast ray from current mouse position
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects([], true);
+      
+      // Find ground plane intersection point
+      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const ray = new THREE.Ray(raycaster.ray.origin, raycaster.ray.direction);
+      const target = new THREE.Vector3();
+      
+      if (ray.intersectPlane(groundPlane, target)) {
+        // Calculate movement delta from drag start
+        const dx = target.x - dragStart.x;
+        const dz = target.z - dragStart.z;
+        
+        // Calculate new shelf position
+        let newX = startPosition.x + dx;
+        let newY = startPosition.y + dz;
+        
+        // Constrain to zone boundaries
+        newX = Math.max(0, Math.min(zoneWidth - shelf.width, newX));
+        newY = Math.max(0, Math.min(zoneHeight - shelf.height, newY));
+        
+        // Only update if position actually changed
+        if (newX !== shelf.x || newY !== shelf.y) {
+          onUpdate(shelf.id, { x: newX, y: newY });
+        }
       }
-      return;
     }
+  });
+
+  const handlePointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    // Use native DOM methods for pointer capture
+    if (event.nativeEvent && event.nativeEvent.target) {
+      (event.nativeEvent.target as HTMLElement).setPointerCapture(event.pointerId);
+    }
+    
+    const currentTime = Date.now();
+ 
     setLastClickTime(currentTime);
     
-    // Only start dragging, but don't immediately select the shelf
-    // This prevents analysis panel from opening immediately
+    // Select shelf immediately on pointer down
+    onSelect(shelf);
+    
+    // Start dragging and record starting positions
     setIsDragging(true);
+    setDragStart(event.point.clone());
+    setStartPosition({ x: shelf.x, y: shelf.y });
     
-    // Calculate offset from shelf center to click point
-    const clickPoint = event.point;
-    const shelfCenterX = shelf.x + shelf.width / 2;
-    const shelfCenterZ = shelf.y + shelf.height / 2;
-    setDragOffset({
-      x: clickPoint.x - shelfCenterX,
-      y: clickPoint.z - shelfCenterZ
-    });
-  };
+    document.body.style.cursor = 'grabbing';
+  }, [shelf, onSelect, lastClickTime]);
 
-  const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
-    if (!isDragging) return;
-    
-    // Select shelf after dragging starts - this ensures the selection
-    // only happens when user is actually moving the shelf
-    if (isDragging) {
-      onSelect(shelf);
+  const handlePointerUp = useCallback((event: ThreeEvent<PointerEvent>) => {
+    // Use native DOM methods for pointer release
+    if (event.nativeEvent && event.nativeEvent.target) {
+      (event.nativeEvent.target as HTMLElement).releasePointerCapture(event.pointerId);
     }
     
-    const newCenterX = event.point.x - dragOffset.x;
-    const newCenterZ = event.point.z - dragOffset.y;
-    
-    // Calculate new top-left position
-    const newX = newCenterX - shelf.width / 2;
-    const newY = newCenterZ - shelf.height / 2;
-    
-    // Constrain to zone boundaries
-    const constrainedX = Math.max(0, Math.min(zoneWidth - shelf.width, newX));
-    const constrainedY = Math.max(0, Math.min(zoneHeight - shelf.height, newY));
-    
-    onUpdate(shelf.id, { x: constrainedX, y: constrainedY });
-  };
-
-  const handlePointerUp = (event: ThreeEvent<PointerEvent>) => {
-    // If we just clicked (without dragging), select the shelf
-    if (isDragging && Math.abs(event.point.x - (shelf.x + shelf.width / 2)) < 0.1 &&
-        Math.abs(event.point.z - (shelf.y + shelf.height / 2)) < 0.1) {
-      onSelect(shelf);
-    }
     setIsDragging(false);
-  };
+    setDragStart(null);
+    
+    document.body.style.cursor = isSelected ? 'grab' : 'pointer';
+  }, [isSelected]);
+
+  const handlePointerOut = useCallback(() => {
+    // Just change cursor, don't end drag operation when pointer leaves object
+    if (!isDragging) {
+      document.body.style.cursor = 'default';
+    }
+  }, [isDragging]);
+
+  const handlePointerOver = useCallback((event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    document.body.style.cursor = isDragging ? 'grabbing' : isSelected ? 'grab' : 'pointer';
+  }, [isDragging, isSelected]);
+
+  // Update document cursor when component unmounts
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = 'default';
+    };
+  }, []);
 
   const getShelfColor = () => {
     if (shelf.isOverlapping) return '#ef4444'; // Red for overlapping
@@ -103,29 +126,15 @@ export default function ResizableShelf({
     return categoryObj?.color || '#6b7280';
   };
 
-  const getCursorStyle = () => {
-    if (isDragging) return 'grabbing';
-    if (isSelected) return 'grab';
-    return 'pointer';
-  };
-
   return (
     <group position={[shelf.x + shelf.width/2, 0.5, shelf.y + shelf.height/2]}>
       {/* Shelf base */}
       <mesh
         ref={meshRef}
         onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerOut={() => {
-          document.body.style.cursor = 'default';
-          // If dragging and cursor leaves the shelf, end drag operation
-          if (isDragging) setIsDragging(false);
-        }}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          document.body.style.cursor = getCursorStyle();
-        }}
+        onPointerOut={handlePointerOut}
+        onPointerOver={handlePointerOver}
         position={[0, 0, 0]}
       >
         <boxGeometry args={[shelf.width, 1, shelf.height]} />
@@ -181,18 +190,7 @@ export default function ResizableShelf({
             {shelf.category}
           </Text>
           
-          {/* Double-click hint */}
-          <Text
-            position={[0, 2.0, 0]}
-            rotation={[-Math.PI/2, 0, 0]}
-            fontSize={Math.min(shelf.width, shelf.height) * 0.15}
-            color="#10b981"
-            anchorX="center"
-            anchorY="middle"
-            textAlign="center"
-          >
-            Double-click for products
-          </Text>
+    
         </>
       )}
       

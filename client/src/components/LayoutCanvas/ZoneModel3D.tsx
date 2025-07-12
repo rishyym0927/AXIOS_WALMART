@@ -32,15 +32,7 @@ export default function ZoneModel3D({ zone, isSelected, onSelect }: ZoneModel3DP
 
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation();
-    
-    // Check for double-click navigation
-    if (e.detail === 2) {
-      router.push(`/zone/${zone.id}`);
-      return;
-    }
-    
-    onSelect();
+  
   };
 
   // Determine zone appearance based on overlap status

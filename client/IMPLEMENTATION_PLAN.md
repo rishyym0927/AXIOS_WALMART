@@ -14,11 +14,7 @@ Build a Zone Analyser page that provides shelf optimization within zones, reusin
 const handlePointerDown = (event: any) => {
   // ...existing code...
   
-  // Add double-click navigation
-  if (event.detail === 2) { // Double click
-    router.push(`/zone/${zone.id}`);
-    return;
-  }
+
   
   // ...rest of existing code...
 };
@@ -86,8 +82,6 @@ export default function ZoneAnalyserPage() {
   );
 }
 ```
-
-**Deliverable:** Navigation to zone analysis page working from both canvas double-click and sidebar button.
 
 ---
 
@@ -522,7 +516,7 @@ optimizeLayout: () => {
 - `src/components/ZoneAnalyser/ShelfAIAssistant.tsx`
 
 ### Files Modified (Minimal changes):
-- `src/components/LayoutCanvas/ResizableZone.tsx` - Add double-click navigation
+
 - `src/components/Sidebar/ZoneItem.tsx` - Add analyse button
 - `src/services/aiService.ts` - Add shelf suggestion method
 
