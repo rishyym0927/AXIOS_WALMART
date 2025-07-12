@@ -5,9 +5,9 @@ import { Store, Zone, Shelf, Product } from '@/types';
 //   ? 'https://proto-8b15.onrender.com/api/store'
 //   : 'http://localhost:5000/api/store';
 
-const API_STORE_URL = "http://localhost:5000/api/store"
-const API_SHELVES_URL = "http://localhost:5000/api/shelves"
-const API_PRODUCTS_URL = "http://localhost:5000/api/products"
+const API_STORE_URL = "https://proto-8b15.onrender.com/api/store"
+const API_SHELVES_URL = "https://proto-8b15.onrender.com/api/shelves"
+const API_PRODUCTS_URL = "https://proto-8b15.onrender.com/api/products"
 console.log('Environment:', process.env.NODE_ENV);
 console.log('API URL:', API_STORE_URL);
 
