@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Store Layout Designer",
-  description: "Design and optimize your 2D store layout with AI assistance",
+  title: "Axios - Smart Retail Analytics",
+  description: "Transform your retail operations with AI-powered analytics, smart product placement, and intelligent store optimization",
 };
 
 export default function RootLayout({

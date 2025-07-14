@@ -4,7 +4,7 @@ import dynamic from "next/dynamic"
 import { motion } from "framer-motion"
 import { useEffect, useState } from "react"
 import { useStoreDesigner } from "@/store/useStoreDesigner"
-import { Layout, DollarSign, BarChart3, Activity, RefreshCw, Target, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { Layout, DollarSign, BarChart3, Activity, RefreshCw, Target, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react"
 import Navbar from "@/components/Navbar"
 import StoreLoader from "@/components/StoreLoader"
 
@@ -130,8 +130,13 @@ export default function ModernDashboard() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-600 mt-1">Monitor your store performance and insights</p>
+                <div className="flex items-center space-x-3 mb-2">
+                  <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-2 rounded-lg">
+                    <Sparkles size={20} />
+                  </div>
+                  <h1 className="text-2xl font-bold text-gray-900">Axios Analytics Dashboard</h1>
+                </div>
+                <p className="text-gray-600">Real-time store performance and AI-powered insights</p>
               </div>
               <button
                 onClick={handleRefresh}

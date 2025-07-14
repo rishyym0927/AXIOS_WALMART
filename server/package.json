@@ -1,5 +1,5 @@
 {
-  "name": "server",
+  "name": "axios-retail-server",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "author": "",
   "license": "ISC",
-  "description": "Store layout dimensions server",
+  "description": "Axios retail analytics and store management server",
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

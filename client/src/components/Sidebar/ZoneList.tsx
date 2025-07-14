@@ -78,21 +78,28 @@ export default function ZoneList() {
 
   return (
     <div className="space-y-3">
-      <h3 className="font-bold text-lg text-gray-900">
-        Zones ({store.zones.length})
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-lg text-gray-900">
+          Zone Management ({store.zones.length})
+        </h3>
+        {store.zones.length > 0 && (
+          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+            {store.zones.length} zone{store.zones.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       
       {store.zones.length === 0 ? (
-        <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="text-center py-8 bg-gradient-to-br from-gray-50 to-blue-50 rounded-lg border border-gray-200">
           <div className="max-w-sm mx-auto">
-            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
             <p className="text-gray-700 font-medium">No zones defined</p>
             <p className="text-gray-600 text-sm mt-1">
-              Add your first zone to start organizing your store layout
+              Create your first zone to start organizing your store layout
             </p>
           </div>
         </div>

@@ -47,6 +47,7 @@ console.log('Setting up routes...');
 app.use('/api/store', require('./routes/store'));
 app.use('/api/shelves', require('./routes/shelves'));
 app.use('/api/products', require('./routes/products'));
+app.use('/api/analytics', require('./routes/analytics'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

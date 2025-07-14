@@ -94,9 +94,9 @@ export default function HeroSection() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, delay: 0.5 }}
           >
-            Reinventing Retail
+            Axios
             <br />
-            <span className="text-white">with AI</span>
+            <span className="text-white">Smart Retail Analytics</span>
           </motion.h1>
 
           <motion.p
@@ -105,8 +105,8 @@ export default function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.7 }}
           >
-            StoreOps AI transforms brick-and-mortar stores into intelligent, adaptive experiences using your existing
-            infrastructure. Privacy-first. Results-driven.
+            Axios revolutionizes retail with AI-powered analytics, smart product placement, and real-time insights 
+            that transform your store into an intelligent, customer-centric experience.
           </motion.p>
 
           <motion.div
@@ -140,9 +140,9 @@ export default function HeroSection() {
             transition={{ duration: 1, delay: 1.1 }}
           >
             {[
-              { value: "35%", label: "Revenue Increase" },
-              { value: "60%", label: "Efficiency Boost" },
-              { value: "100%", label: "Privacy Compliant" },
+              { value: "40%", label: "Revenue Increase" },
+              { value: "75%", label: "Efficiency Boost" },
+              { value: "100%", label: "AI-Powered" },
             ].map((stat, index) => (
               <div key={index} className="text-center">
                 <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2">
