@@ -90,7 +90,18 @@ We developed a **smart, adaptive layout system** with a fully functional **dashb
 
 ## 📽️ Demo & Visuals
 
-👉 \[Include Screenshots or Loom Video of Dashboard Here]
+<img width="1914" height="974" alt="image" src="https://github.com/user-attachments/assets/8386423c-61da-4efa-8f94-cc04ff83479b" />
+<img width="1914" height="974" alt="image" src="https://github.com/user-attachments/assets/e240a94c-897d-4ffb-b2e8-15f2bf736771" />
+<img width="1914" height="974" alt="image" src="https://github.com/user-attachments/assets/49bdf0f8-d5e8-454e-9b05-201799ef417a" />
+<img width="1914" height="974" alt="image" src="https://github.com/user-attachments/assets/9e2bd4f3-a412-4037-a92e-58463a5c00ef" />
+<img width="1914" height="974" alt="image" src="https://github.com/user-attachments/assets/6090fb32-3bb0-4762-9192-32532e4dbbf9" />
+
+<img width="1914" height="974" alt="image" src="https://github.com/user-attachments/assets/d151353c-0178-4e25-abf3-ab1d64f2d528" />
+
+<img width="1914" height="974" alt="image" src="https://github.com/user-attachments/assets/418b69de-4162-4b45-848e-c1126b2401ce" />
+
+
+
 
 ---
 
