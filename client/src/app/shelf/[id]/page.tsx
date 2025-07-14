@@ -7,10 +7,11 @@ import { useProductStore } from '@/store/useProductStore';
 import { useStoreDesigner } from '@/store/useStoreDesigner';
 import { 
   Package, ArrowLeft, Grid, TrendingUp, DollarSign, 
-  BarChart3, AlertCircle, Plus, RefreshCw 
+  BarChart3, AlertCircle, Plus, RefreshCw, Sparkles 
 } from 'lucide-react';
 import { Product, ShelfSlot, Shelf, Zone } from '@/types';
 import { fetchShelvesForZone } from '@/services/storeService';
+import AxiosAutoPlacement from '@/components/AxiosAutoPlacement';
 
 export default function ShelfProductPage() {
   const params = useParams();
@@ -446,6 +447,20 @@ export default function ShelfProductPage() {
             <p className="text-xl font-semibold">${metrics.revenue.toFixed(2)}</p>
           </div>
         </div>
+      </div>
+
+      {/* AI Product Placement */}
+      <div className="mt-8">
+        <AxiosAutoPlacement
+          zone={zone}
+          shelves={[shelf]}
+          products={availableProducts}
+          autoGenerate={true}
+          onPlacementsGenerated={(result) => {
+            console.log('AI Placement Results:', result);
+            // Here you could automatically apply the placements or show them to the user
+          }}
+        />
       </div>
     </div>
   );

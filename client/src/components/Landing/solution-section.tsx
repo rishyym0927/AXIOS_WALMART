@@ -48,7 +48,7 @@ export default function SolutionSection() {
           className="text-center mb-16"
         >
           <h2 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-            The StoreOps AI Solution
+            The Axios Solution
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
             Transform your retail operations with intelligent, privacy-compliant AI that works with your existing
