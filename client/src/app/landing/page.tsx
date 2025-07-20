@@ -58,7 +58,7 @@ export default function Home() {
         <HowItWorksSection />
         <PrivacySection />
         <ROISection />
-        <TeamSection />
+
         <ContactSection />
       </main>
 
