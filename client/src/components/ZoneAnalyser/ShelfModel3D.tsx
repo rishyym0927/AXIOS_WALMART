@@ -22,11 +22,12 @@ export default function ShelfModel3D({ shelf, isSelected, onSelect }: ShelfModel
   // Shelf height
   const shelfHeight = isSelected ? 1.5 : 1.0;
   
-  useFrame(() => {
-    if (meshRef.current && isSelected) {
-      meshRef.current.rotation.y += 0.002;
-    }
-  });
+  // Removed automatic rotation when selected
+  // useFrame(() => {
+  //   if (meshRef.current && isSelected) {
+  //     meshRef.current.rotation.y += 0.002;
+  //   }
+  // });
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();

@@ -20,11 +20,12 @@ export default function ZoneModel3D({ zone, isSelected, onSelect }: ZoneModel3DP
   // Wall height
   const wallHeight = 2.5;
   
-  useFrame(() => {
-    if (meshRef.current && isSelected) {
-      meshRef.current.rotation.y += 0.003;
-    }
-  });
+  // Removed automatic rotation when selected
+  // useFrame(() => {
+  //   if (meshRef.current && isSelected) {
+  //     meshRef.current.rotation.y += 0.003;
+  //   }
+  // });
 
   // Convert color hex to Three.js color
   const color = zone.color;
