@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useUser, UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { 
   User, 
   Settings, 
@@ -21,7 +22,7 @@ import {
 const NAVIGATION_ITEMS = [
   { id: 'landing', label: 'Landing', icon: Sparkles, href: '/landing' },
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3, href: '/dashboard' },
-  { id: 'layout', label: 'Layout Designer', icon: Layout, href: '/', active: true },
+  { id: 'layout', label: 'Layout Designer', icon: Layout, href: '/' },
   { id: 'help', label: 'Help', icon: HelpCircle, href: '/help' },
 ];
 
@@ -35,8 +36,16 @@ export default function Navbar() {
   const { isSignedIn, user } = useUser();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const pathname = usePathname();
 
   const unreadNotifications = NOTIFICATIONS.filter(n => n.unread).length;
+
+  const isActive = (href: string) => {
+    if (href === '/') {
+      return pathname === '/';
+    }
+    return pathname.startsWith(href);
+  };
 
   return (
     <nav className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3">
@@ -69,7 +78,7 @@ export default function Navbar() {
                 key={item.id}
                 href={item.href}
                 className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  item.active
+                  isActive(item.href)
                     ? 'bg-blue-100 text-blue-700'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
@@ -178,40 +187,30 @@ export default function Navbar() {
             )}
           </div>
         </div>
-      </div>
 
-      {/* Mobile navigation menu */}
-      {showMobileMenu && (
-        <div className="lg:hidden mt-3 border-t border-gray-200 pt-3">
-          <div className="space-y-1">
-            {NAVIGATION_ITEMS.map((item) => (
-              <a
-                key={item.id}
-                href={item.href}
-                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
-                  item.active
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-              >
-                <item.icon size={16} className="mr-3" />
-                {item.label}
-              </a>
-            ))}
-          </div>
-          {/* Mobile search */}
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search layouts, zones..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              />
+        {/* Mobile menu */}
+        {showMobileMenu && (
+          <div className="lg:hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-lg z-40">
+            <div className="px-4 py-3 space-y-1">
+              {NAVIGATION_ITEMS.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  onClick={() => setShowMobileMenu(false)}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    isActive(item.href)
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <item.icon size={16} />
+                  {item.label}
+                </Link>
+              ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </nav>
   );
 }
