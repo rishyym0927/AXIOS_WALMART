@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar';
 import AIAssistant from '@/components/AIAssistant';
 import DemoHelp from '@/components/DemoHelp';
 import StoreLoader from '@/components/StoreLoader';
+import AuthWrapper from '@/components/AuthWrapper';
 
 // Dynamically import LayoutCanvas to avoid SSR issues with Three.js
 const LayoutCanvas = dynamic(() => import('@/components/LayoutCanvas/LayoutCanvas'), {
@@ -19,7 +20,8 @@ const LayoutCanvas = dynamic(() => import('@/components/LayoutCanvas/LayoutCanva
 
 export default function Home() {
   return (
-    <StoreLoader>
+    <AuthWrapper>
+      <StoreLoader>
       <div className="h-screen flex flex-col bg-gray-50">
         {/* Navbar */}
         <Navbar />
@@ -44,5 +46,6 @@ export default function Home() {
         <DemoHelp />
       </div>
     </StoreLoader>
+    </AuthWrapper>
   );
 }

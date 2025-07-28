@@ -13,6 +13,7 @@ import TeamSection from "@/components/Landing/team-section"
 import ContactSection from "@/components/Landing/contact-section"
 import Navigation from "@/components/Landing/navigation"
 import { Toaster } from "@/components/ui/toaster"
+import AuthWrapper from "@/components/AuthWrapper"
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null)

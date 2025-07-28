@@ -7,6 +7,7 @@ import { useStoreDesigner } from "@/store/useStoreDesigner"
 import { Layout, DollarSign, BarChart3, Activity, RefreshCw, Target, ArrowUpRight, ArrowDownRight } from "lucide-react"
 import Navbar from "@/components/Navbar"
 import StoreLoader from "@/components/StoreLoader"
+import AuthWrapper from "@/components/AuthWrapper"
 
 // Dynamic imports
 const ModernZoneAnalytics = dynamic(() => import("@/components/Dashboard/ModernZoneAnalytics"), {
@@ -121,12 +122,13 @@ export default function ModernDashboard() {
   }
 
   return (
-    <StoreLoader>
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
+    <AuthWrapper>
+      <StoreLoader>
+        <div className="min-h-screen bg-gray-50">
+          <Navbar />
 
-        {/* Clean Header */}
-        <div className="bg-white border-b border-gray-200">
+          {/* Clean Header */}
+          <div className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex items-center justify-between">
               <div>
@@ -224,5 +226,6 @@ export default function ModernDashboard() {
         </div>
       </div>
     </StoreLoader>
+    </AuthWrapper>
   )
 }
